@@ -3,7 +3,6 @@ import { Brand } from './brand';
 import { ScrollView, View, type ColorValue, type DimensionValue } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useRemyTheme } from '@/theme/provider';
 import { useLanguage } from '@/providers/language-provider';
@@ -13,7 +12,7 @@ export function AppSkeleton({ navigation = true }: { navigation?: boolean }) {
   const { colors, mode } = useRemyTheme(); const { language } = useLanguage(); const reduced = useReducedMotion();
   const rtl = language === 'ar'; const insets = useSafeAreaInsets();
   const block = (width: DimensionValue, height: number, color: ColorValue = colors.border) => <View style={{ width, height, borderRadius: 8, backgroundColor: color }} />;
-  const body = <View accessible testID={navigation ? 'app-startup-skeleton' : 'home-loading-skeleton'} accessibilityRole="progressbar" accessibilityLabel={rtl ? 'جارٍ تحميل Remi' : 'Loading Remi'} accessibilityState={{ busy: true }} style={{ flex: 1, backgroundColor: colors.background }} onLayout={navigation ? () => SplashScreen.hide() : undefined}>
+  const body = <View accessible testID={navigation ? 'app-startup-skeleton' : 'home-loading-skeleton'} accessibilityRole="progressbar" accessibilityLabel={rtl ? 'جارٍ تحميل Remi' : 'Loading Remi'} accessibilityState={{ busy: true }} style={{ flex: 1, backgroundColor: colors.background }}>
     <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <ScrollView scrollEnabled={false} contentContainerStyle={{ padding: 20, gap: 20, direction: rtl ? 'rtl' : 'ltr' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={{ backgroundColor: colors.hero, marginHorizontal: -20, marginTop: -20, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, gap: 8, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>

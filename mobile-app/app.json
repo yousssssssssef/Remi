@@ -11,7 +11,8 @@
       "icon": "./assets/remi.icon",
       "bundleIdentifier": "com.remi.cookbook.independent",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CADisableMinimumFrameDurationOnPhone": true
       },
       "entitlements": {
         "keychain-access-groups": [
@@ -45,12 +46,12 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFDF4",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 180,
+          "backgroundColor": "#F8E45C",
+          "image": "./assets/images/splash-blank.png",
+          "imageWidth": 1,
           "dark": {
-            "backgroundColor": "#0B1030",
-            "image": "./assets/images/splash-icon-dark.png"
+            "backgroundColor": "#1734BE",
+            "image": "./assets/images/splash-blank.png"
           }
         }
       ],

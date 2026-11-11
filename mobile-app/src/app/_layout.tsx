@@ -1,4 +1,6 @@
 import { StartupGate } from '@/components/startup-gate';
+import { LaunchProvider } from '@/components/launch/launch-context';
+import { LaunchOverlay } from '@/components/launch/launch-overlay';
 import { OfflineBanner } from '@/components/offline-banner';
 import { feedbackSettings } from '@/services/feedback';
 import { ShoppingProvider } from '@/providers/shopping-provider';
@@ -14,7 +16,12 @@ import { LanguageProvider } from '@/providers/language-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { BackendKitchenProvider } from '@/providers/backend-kitchen-provider';
 import { BackendRecipesProvider } from '@/providers/backend-recipes-provider';
+import * as SplashScreen from 'expo-splash-screen';
 
+// The launch welcome hides the splash once its first frame is drawn (src/components/launch).
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+// A short crossfade hides any colour or scale difference in the system's launch snapshot.
+SplashScreen.setOptions({ fade: true, duration: 180 });
 // The saved Sounds and Haptics choices, read once at launch.
 void feedbackSettings.restore();
 
@@ -38,5 +45,5 @@ function Navigation() {
 }
 
 export default function RootLayout() {
-  return <SafeAreaProvider><RemyThemeProvider><RemyFontProvider><LanguageProvider><InventoryProvider><PlannerProvider><ShoppingProvider><AuthProvider><BackendKitchenProvider><BackendRecipesProvider><OnboardingProvider><StartupGate><Navigation /></StartupGate></OnboardingProvider></BackendRecipesProvider></BackendKitchenProvider></AuthProvider></ShoppingProvider></PlannerProvider></InventoryProvider></LanguageProvider></RemyFontProvider></RemyThemeProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><RemyThemeProvider><RemyFontProvider><LanguageProvider><InventoryProvider><PlannerProvider><ShoppingProvider><AuthProvider><BackendKitchenProvider><BackendRecipesProvider><OnboardingProvider><LaunchProvider><StartupGate><Navigation /></StartupGate><LaunchOverlay /></LaunchProvider></OnboardingProvider></BackendRecipesProvider></BackendKitchenProvider></AuthProvider></ShoppingProvider></PlannerProvider></InventoryProvider></LanguageProvider></RemyFontProvider></RemyThemeProvider></SafeAreaProvider>;
 }

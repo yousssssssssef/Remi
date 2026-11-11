@@ -292,7 +292,9 @@ function homeLayoutHarness(backend, language = 'en', homePlan = { upcoming: [], 
   const code = ts.transpileModule(fs.readFileSync('src/screens/home-screen.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
   const kitchen = backend ?? { items: [], status: 'signed-out', today: '2026-06-02' };
   new Function('require', 'exports', code)(id => {
-    if (id === 'react') return { useCallback: f => f, useRef: value => ({ current: value }), useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; } };
+    if (id === 'react') return { useCallback: f => f, useEffect: () => {}, useRef: value => ({ current: value }), useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; } };
+    if (id === 'react-native-reanimated') return { __esModule: true, default: { View: 'AnimatedView' } };
+    if (id === '@/components/launch/launch-context') return { useLaunch: () => ({ targets: {}, markHomeReady: () => {} }), useLaunchHidden: () => ({}), useLaunchReveal: () => ({}) };
     if (id === 'expo-router') return { useScrollToTop: () => {}, useFocusEffect: () => {}, router: { navigate: p => routes.push(p), push: p => routes.push(p) } };
     if (id === 'expo-image') return { Image: 'Image' };
     if (id === 'react-native') return { Pressable: 'Pressable', ScrollView: 'ScrollView', View: 'View' };

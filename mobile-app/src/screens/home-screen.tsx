@@ -6,7 +6,9 @@ import { palette, radii, spacing } from '@/theme/tokens';
 import { AppSkeleton } from '@/components/app-skeleton';
 import { BackendHomeRecipeIdeas } from './backend-home-recipe-ideas';
 import { ingredientImage } from '@/data/ingredient-images';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Animated from 'react-native-reanimated';
+import { useLaunch, useLaunchHidden, useLaunchReveal } from '@/components/launch/launch-context';
 import { router, useScrollToTop } from 'expo-router';
 import { Image } from 'expo-image';
 import { Pressable, View, type ScrollViewInstance } from 'react-native';
@@ -30,6 +32,12 @@ export default function HomeScreen(_props: { backend?: BackendHomeData } = {}) {
   const scrollRef = useRef<ScrollViewInstance>(null);
   useScrollToTop(scrollRef);
   const catalogueData = useKitchenData(loadRecipes, 'home-catalogue');
+  // The launch welcome hands its lemon surface and wordmark to this hero once it is laid out with data.
+  const launch = useLaunch(); const ownArt = useLaunchHidden();
+  const tagIn = useLaunchReveal(0.8, 1, 0), heroIn = useLaunchReveal(0.7, 1, 8), contentIn = useLaunchReveal(0.42, 0.9, 12);
+  const [heroLaidOut, setHeroLaidOut] = useState(false);
+  const { markHomeReady } = launch;
+  useEffect(() => { if (heroLaidOut && !catalogueData.loading) markHomeReady(); }, [heroLaidOut, catalogueData.loading, markHomeReady]);
   const [query, setQuery] = useState(''); const [tab, setTab] = useState('for-you');
   const data = useKitchenData(async () => {
     const today = todayKey();
@@ -61,13 +69,13 @@ export default function HomeScreen(_props: { backend?: BackendHomeData } = {}) {
   const browse = (key: string) => router.push({ pathname: '/feature', params: key === 'for-you' ? { feature: 'recipes' } : { feature: 'recipes', browse: key } });
   const ingredientCount = new Set(kitchen.items.filter(item => Number(item.quantity) > 0).map(item => item.foodId)).size;
   return <Screen rtl={rtl} contentGap={20} scrollRef={scrollRef} topColor={colors.hero}>
-    <View style={{ backgroundColor: colors.hero, marginHorizontal: -20, marginTop: -20, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, gap: 8, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>
-      <View style={uiStyles.row}><View style={{ flex: 1, gap: 2 }}><View style={{ alignSelf: 'flex-start', backgroundColor: palette['Lemon Yellow'], borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2 }}><Brand kind="wordmark" height={24} color={palette['Cobalt Blue']} /></View><AppText variant="title" accessibilityRole="header" style={{ fontSize: 24, lineHeight: 30, color: colors.onHero }}>{c('A good day to cook.', 'يوم جميل للطبخ.')}</AppText>
+    <Animated.View ref={launch.targets.hero} onLayout={() => setHeroLaidOut(true)} style={{ backgroundColor: colors.hero, marginHorizontal: -20, marginTop: -20, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, gap: 8, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>
+      <View style={uiStyles.row}><View style={{ flex: 1, gap: 2 }}><Animated.View style={[{ alignSelf: 'flex-start', backgroundColor: palette['Lemon Yellow'], borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2 }, tagIn]}><Animated.View ref={launch.targets.wordmark} style={ownArt}><Brand kind="wordmark" height={24} color={palette['Cobalt Blue']} /></Animated.View></Animated.View><Animated.View style={heroIn}><AppText variant="title" accessibilityRole="header" style={{ fontSize: 24, lineHeight: 30, color: colors.onHero }}>{c('A good day to cook.', 'يوم جميل للطبخ.')}</AppText></Animated.View>
         {user && kitchen.status === 'ready' && <AppText variant="caption" style={{ color: colors.onHeroMuted }}>{ingredientCount === 1 ? c('1 ingredient in your kitchen', 'مكوّن واحد في مطبخك') : c(`${ingredientCount} ingredients in your kitchen`, `${ingredientCount} مكوّن في مطبخك`)}</AppText>}</View>
-        <Pressable accessibilityRole="button" accessibilityLabel={c('Your account', 'حسابك')} onPress={() => feature('profile')} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: palette['Lemon Yellow'], borderWidth: 1.5, borderColor: palette['Cobalt Blue'], opacity: pressed ? 0.8 : 1 })}><Brand kind="mascot" height={32} color={palette['Cobalt Blue']} /></Pressable></View>
-      <SearchField value={query} onChangeText={setQuery} placeholder={c('Search food or recipes', 'ابحث عن طعام أو وصفة')} autoCorrect={false} />
-    </View>
-    {!user ? <Card><AppText variant="heading">{c('Your kitchen, all together.', 'مطبخك في مكان واحد.')}</AppText><AppText>{c('Keep track of what you have, cook something good, and plan a little ahead.', 'تابع طعامك وحضّر وجباتك وخطط للأيام القادمة.')}</AppText><Button label={c('Sign in to your kitchen', 'تسجيل الدخول إلى مطبخك')} onPress={() => router.push('/login')} /><Button label={c('Create an account', 'إنشاء حساب')} variant="text" onPress={() => router.push('/signup')} /></Card> : <>
+        <Animated.View style={heroIn}><Pressable accessibilityRole="button" accessibilityLabel={c('Your account', 'حسابك')} onPress={() => feature('profile')} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: palette['Lemon Yellow'], borderWidth: 1.5, borderColor: palette['Cobalt Blue'], opacity: pressed ? 0.8 : 1 })}><Brand kind="mascot" height={32} color={palette['Cobalt Blue']} /></Pressable></Animated.View></View>
+      <Animated.View style={heroIn}><SearchField value={query} onChangeText={setQuery} placeholder={c('Search food or recipes', 'ابحث عن طعام أو وصفة')} autoCorrect={false} /></Animated.View>
+    </Animated.View>
+    <Animated.View style={[{ gap: 20 }, contentIn]}>{!user ? <Card><AppText variant="heading">{c('Your kitchen, all together.', 'مطبخك في مكان واحد.')}</AppText><AppText>{c('Keep track of what you have, cook something good, and plan a little ahead.', 'تابع طعامك وحضّر وجباتك وخطط للأيام القادمة.')}</AppText><Button label={c('Sign in to your kitchen', 'تسجيل الدخول إلى مطبخك')} onPress={() => router.push('/login')} /><Button label={c('Create an account', 'إنشاء حساب')} variant="text" onPress={() => router.push('/signup')} /></Card> : <>
       <DataNotice {...data} loading={false} />
       {(query.trim() || tab !== 'for-you') && <DataNotice {...catalogueData} />}
       {kitchen.status === 'error' && <Card><AppText accessibilityRole="alert">{c('Could not load your kitchen.', 'تعذّر تحميل مطبخك.')}</AppText><Button label={c('Try again', 'حاول مجددًا')} onPress={() => { void kitchen.retry(); }} /></Card>}
@@ -110,6 +118,6 @@ export default function HomeScreen(_props: { backend?: BackendHomeData } = {}) {
         <SectionHeader title={c('In your shopping list', 'في قائمة مشترياتك')} action={c('View list', 'عرض القائمة')} onPress={() => feature('shopping')} />
         <Card style={{ gap: spacing.xs, paddingVertical: spacing.sm }}>{onList.map(recipe => row(recipe.id, recipe.name, c(`${recipe.onList} of ${recipe.total} ingredients on your list`, `${recipe.onList} من ${recipe.total} مكونات في قائمتك`), () => router.push({ pathname: '/recipes/[id]', params: { id: recipe.id } }), recipe.id))}</Card>
       </View>}
-    </>}
+    </>}</Animated.View>
   </Screen>;
 }
