@@ -43,3 +43,17 @@ test('actual screen navigates steps, switches languages, resumes and handles abs
  assert.doesNotMatch(fs.readFileSync('src/screens/cooking-screen.tsx','utf8'),/setInterval|setTimeout|timerDuration|createItem|updateItem/);
  const old=sampleSteps.ar.bowl;sampleSteps.ar.bowl=undefined;id='bowl';assert.ok(render().some(n=>n.type==='EmptyState'));sampleSteps.ar.bowl=old;
 });
+
+test('cooking points reward distinct steps and completing every step, not skipping or replaying steps',()=>{
+ let s=utils.selectCookingStep(utils.initialCookingSession,2,3);
+ s=utils.advanceCooking(s,3);assert.equal(s.finished,false);assert.equal(s.current,0);assert.equal(utils.cookingPoints(s),10);
+ s=utils.advanceCooking(s,3);assert.equal(utils.cookingPoints(s),20);
+ s=utils.selectCookingStep(s,0,3);s=utils.advanceCooking(s,3);assert.equal(utils.cookingPoints(s),20);
+ s=utils.advanceCooking(s,3);assert.equal(s.finished,true);assert.equal(utils.cookingPoints(s),80);
+ assert.equal(utils.cookingPoints(utils.advanceCooking(s,3)),80);
+});
+test('timer badges count a timed step once across pauses and restarts and never change completed cooking',()=>{
+ const s=utils.recordCookingTimer(utils.initialCookingSession,0);assert.deepEqual(s.timerSteps,[0]);
+ assert.equal(utils.recordCookingTimer(s,0),s);assert.equal(utils.cookingPoints(s),0);
+ const done=utils.advanceCooking(s,1);assert.equal(utils.recordCookingTimer(done,1),done);
+});

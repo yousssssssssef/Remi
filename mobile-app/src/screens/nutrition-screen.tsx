@@ -1,6 +1,7 @@
+import { Brand } from '@/components/brand';
 import { useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { AppText, Button, Card, EmptyState, PageHeader, Screen, SectionHeader, TextTabs, uiStyles } from '@/components/ui/core';
@@ -15,7 +16,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useLanguage } from '@/providers/language-provider';
 import { kitchenRequest, todayKey } from '@/services/kitchen-api';
 import { useRemyTheme } from '@/theme/provider';
-import { radii } from '@/theme/tokens';
+import { palette, radii } from '@/theme/tokens';
 import { DataNotice, useKitchenData } from './connected-ui';
 
 interface Data {
@@ -42,6 +43,7 @@ export default function NutritionScreen() {
   const { user, ready } = useAuth(); const { language } = useLanguage(); const ar = language === 'ar';
   const { colors } = useRemyTheme(); const reduced = useReducedMotion();
   const c = (en: string, arabic: string) => ar ? arabic : en;
+  const [section, setSection] = useState<'today' | 'trends' | 'awards'>('today');
   const [period, setPeriod] = useState<Period>('week');
   const [allRows, setAllRows] = useState(false);
   const [selected, setSelected] = useState<string | null>(null); // a day picked in the week strip; null is today
@@ -136,21 +138,35 @@ export default function NutritionScreen() {
   const profileGoal = data?.profile.goal?.goalType;
   const goodChange = (change: number) => profileGoal === 'LOSE_WEIGHT' ? change < 0 : profileGoal === 'GAIN_MUSCLE' ? change > 0 : null;
 
-  const ringSummary = (closed: number) => closed === 3 ? c('All three rings closed today. Lovely.', 'أغلقت الحلقات الثلاث اليوم. رائع.')
-    : c(`${closed} of 3 rings closed today.`, `${closed} من ٣ حلقات مغلقة اليوم.`);
   // Medals in the brand's three colours, each with the ink or white that reads on it.
   const medalColor = (a: Award) => ({ flame: [colors.accent, colors.onAccent], rings: [colors.primary, colors.onPrimary], health: [colors.hero, colors.onHero], recipe: [colors.hero, colors.onHero], award: [colors.primary, colors.onPrimary] } as const)[a.icon];
 
   return <View style={{ flex: 1, backgroundColor: colors.background }}><Screen rtl={ar}>
-    <PageHeader title={c('Nutrition', 'التغذية')} action={logFood} subtitle={game ? ringSummary(game.today.filter(r => r.closed).length) : undefined} />
+    <View style={[uiStyles.row, { alignItems: 'center' }]}>
+      <View style={[uiStyles.grow, { gap: 4 }]}><AppText variant="title" accessibilityRole="header">{c('Your nutrition', 'تغذيتك')}</AppText>
+</View>
+      <Pressable accessibilityRole="button" accessibilityLabel={c('Your account', 'حسابك')} onPress={() => router.push({ pathname: '/feature', params: { feature: 'profile' } })}
+        style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: palette['Cobalt Blue'], backgroundColor: palette['Lemon Yellow'], alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1 })}><Brand kind="mascot" height={34} color={palette['Cobalt Blue']} /></Pressable>
+    </View>
+    <View style={uiStyles.row}><AppText muted style={uiStyles.grow}>{user?.name ? c(`A little balance, ${user.name.trim().split(/\s+/)[0]}.`, `يومك على طريقتك، يا ${user.name.trim().split(/\s+/)[0]}.`) : c('Your day, at your pace.', 'يومك على راحتك.')}</AppText>{logFood}</View>
+    <View accessibilityRole="tablist" style={{ flexDirection: 'row', padding: 4, borderRadius: 24, backgroundColor: colors.surfaceMuted }}>
+      {([{ key: 'today', label: c('Today', 'اليوم') }, { key: 'trends', label: c('Trends', 'الاتجاهات') }, { key: 'awards', label: c('Milestones', 'الإنجازات') }] as const).map(item => <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: section === item.key }} onPress={() => { if (section !== item.key) feedback.select(); setSection(item.key); }}
+        style={({ pressed }) => ({ flex: 1, minHeight: 44, padding: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: pressed ? colors.pressedSurface : section === item.key ? colors.surface : 'transparent' })}><AppText variant="label" style={{ color: section === item.key ? colors.text : colors.textSecondary }}>{item.label}</AppText></Pressable>)}
+    </View>
+    <DataNotice {...state} />
     {cheer && <Animated.View key={cheer} entering={reduced ? undefined : FadeInDown.springify().damping(14)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 18, backgroundColor: colors.accentSoft }}>
       <Icon name="award" size={22} color={colors.accentText} /><AppText variant="label" style={[uiStyles.grow, { color: colors.accentText }]}>{cheer}</AppText>
       <Button label={c('Nice', 'رائع')} variant="text" onPress={() => setCheer(null)} />
     </Animated.View>}
 
-    {game && <Animated.View entering={enter(0)}><RingsHero game={game} selected={selected ?? today} today={today} onSelect={date => setSelected(date === today ? null : date)} ar={ar} c={c} /></Animated.View>}
+    {section === 'today' && game && <Animated.View entering={enter(0)}><RingsHero game={game} selected={selected ?? today} today={today} onSelect={date => setSelected(date === today ? null : date)} ar={ar} c={c} /></Animated.View>}
 
-    {game && <Animated.View entering={enter(1)}><Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+    {section === 'today' && game && <Card style={{ gap: 10, boxShadow: 'none', backgroundColor: colors.primarySoft }}>
+      <AppText variant="heading">{game.byDate.get(today)?.mealCount ? c('Keep your day up to date.', 'كمّل تسجيل يومك.') : c('Log your first meal today.', 'سجّل أول وجبة لليوم.')}</AppText>
+      <AppText muted>{c('Cooked something or ate out? Both count here.', 'حضّرت وجبتك أو تناولتها خارج المنزل؟ سجّلها هنا.')}</AppText>
+      <Button label={c('Adjust my goals', 'تعديل أهدافي')} variant="text" onPress={() => router.push('/health')} />
+    </Card>}
+    {section === 'today' && game && <Animated.View entering={enter(1)}><Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <View style={{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft }}><Icon name="flame" size={26} color={colors.accentText} /></View>
       <View style={uiStyles.grow}>
         <AppText variant="figure" style={{ fontSize: 28, lineHeight: 32 }}>{game.streak.days} <AppText muted>{c('day streak', game.streak.days === 1 ? 'يوم متتالٍ' : 'أيام متتالية')}</AppText></AppText>
@@ -159,16 +175,16 @@ export default function NutritionScreen() {
       <View style={{ alignItems: 'center' }}><AppText variant="heading" style={{ fontVariant: ['tabular-nums'] }}>{game.awards.filter(a => a.earned).length}/{game.awards.length}</AppText><AppText variant="caption" muted>{c('awards', 'أوسمة')}</AppText></View>
     </Card></Animated.View>}
 
-    {game && <Animated.View entering={enter(2)}><Block icon="award" title={c('Awards', 'الأوسمة')}>
+    {section === 'awards' && game && <Animated.View entering={enter(2)}><Block icon="award" title={c('Your milestones', 'إنجازاتك')}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {game.awards.map(a => <Medal key={a.id} award={a} title={ar ? a.ar[0] : a.en[0]} note={a.earned ? (ar ? a.ar[1] : a.en[1]) : c(`${a.have} / ${a.need}`, `${a.have} من ${a.need}`)}
           color={medalColor(a)[0]} onColor={medalColor(a)[1]} muted={colors.surfaceMuted} ink={colors.textSecondary} />)}
       </View>
     </Block></Animated.View>}
 
+    {section === 'trends' && <>
     <View style={{ gap: 4 }}><SectionHeader title={c('Trends', 'الاتجاهات')} />{finding ? <AppText muted>{finding}</AppText> : null}</View>
     <TextTabs tabs={tabs} value={period} onChange={key => setPeriod(key as Period)} rtl={ar} />
-    <DataNotice {...state} />
     {view && !loggedCount && <EmptyState title={c('Nothing here yet.', 'لا شيء هنا بعد.')} description={c('Cook a recipe in Remi or log food you ate out, and your days fill in.', 'اطبخ وصفة في ريمي أو سجّل طعامًا أكلته خارج المنزل، وستمتلئ أيامك.')} />}
 
     {view && loggedCount > 0 && <>
@@ -237,6 +253,7 @@ export default function NutritionScreen() {
       <Button label={c('Edit in Nutrition & preferences', 'تعديل في التغذية والتفضيلات')} variant="text" onPress={() => router.push('/health')} />
     </Block></Animated.View>}
 
+    </>}
     {/* A callout, Notion-style: where the numbers come from. */}
     <View style={{ flexDirection: 'row', gap: 10, padding: 14, borderRadius: radii.md, backgroundColor: colors.surfaceMuted }}>
       <Icon name="info" size={18} color={colors.textSecondary} />
@@ -278,18 +295,19 @@ type Game = { goal: { calorieTarget: number | null; proteinTargetG: number | nul
  */
 function RingsHero({ game, selected, today, onSelect, ar, c }: { game: Game; selected: string; today: string; onSelect: (date: string) => void; ar: boolean; c: (en: string, arabic: string) => string }) {
   const { colors } = useRemyTheme(); const ringColors = useRingColors();
+  const { width, fontScale } = useWindowDimensions(); const compact = width < 370 || fontScale > 1.25;
   const ink = colors.onHero, mist = colors.onHeroMuted;
   const rings = game.week.find(d => d.date === selected)?.rings ?? game.today;
-  const fmt = (v: number) => Math.round(v).toLocaleString('en');
+  const fmt = (v: number) => Math.round(v).toLocaleString(ar ? 'ar' : 'en');
   const names: Record<RingKey, string> = { fuel: c('Fuel', 'الطاقة'), protein: c('Protein', 'البروتين'), fibre: c('Fibre', 'الألياف') };
   const unit = (key: RingKey) => key === 'fuel' ? (game.goal.calorieTarget ? c('kcal', 'سعرة') : c('meals', 'وجبات')) : c('g', 'غ');
   const dayName = selected === today ? c('Today', 'اليوم') : new Date(`${selected}T12:00:00`).toLocaleDateString(ar ? 'ar' : 'en', { weekday: 'long', day: 'numeric', month: 'short' });
   // The rings live on the app's hero surface (lemon in light, cobalt in dark), like Home's header.
-  return <View style={{ backgroundColor: colors.hero, borderRadius: 28, padding: 20, gap: 20 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+  return <View style={{ backgroundColor: colors.hero, borderRadius: 28, padding: 18, gap: 16 }}>
+    <View style={[uiStyles.row, { alignItems: 'flex-start' }]}><View style={[uiStyles.grow, { gap: 4 }]}><AppText variant="heading" style={{ color: ink }}>{dayName}</AppText><AppText variant="caption" style={{ color: mist }}>{rings.filter(r => r.closed).length === 3 ? c('Your three rings are complete.', 'اكتملت حلقاتك الثلاث.') : c(`${rings.filter(r => r.closed).length} of 3 rings complete`, `اكتملت ${rings.filter(r => r.closed).length} من ٣ حلقات`)}</AppText></View><Icon name="nutrition" size={24} color={ink} /></View>
+    <View style={{ flexDirection: compact ? 'column' : 'row', alignItems: 'center', gap: 20 }}>
       <ActivityRings key={selected} rings={rings} size={148} stroke={17} label={rings.map(r => `${names[r.key]} ${fmt(r.value)} / ${fmt(r.target)}`).join(', ')} />
-      <View style={{ flex: 1, gap: 12 }}>
-        <AppText variant="caption" style={{ color: mist }}>{dayName}</AppText>
+      <View style={{ flex: compact ? undefined : 1, alignSelf: compact ? 'stretch' : undefined, gap: 12 }}>
         {rings.map(r => <View key={r.key} style={{ gap: 1 }}>
           {/* The ring's colour lives in its dot; the words stay in ink so they read on the hero. */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -302,11 +320,11 @@ function RingsHero({ game, selected, today, onSelect, ar, c }: { game: Game; sel
     </View>
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
       {game.week.map(d => { const on = d.date === selected;
-        return <Pressable key={d.date} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={new Date(`${d.date}T12:00:00`).toLocaleDateString(ar ? 'ar' : 'en', { weekday: 'long' })}
+        return <Pressable key={d.date} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={new Date(`${d.date}T12:00:00`).toLocaleDateString(ar ? 'ar' : 'en', { weekday: 'long', day: 'numeric', month: 'long' })}
           onPress={() => { if (!on) feedback.select(); onSelect(d.date); }} hitSlop={4}
-          style={{ alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 14, backgroundColor: on ? `${ink}1A` : 'transparent' }}>
+          style={{ flex: 1, minHeight: 60, alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 0, borderRadius: 14, backgroundColor: on ? `${ink}1A` : 'transparent' }}>
           <AppText variant="caption" style={{ color: on ? ink : mist, fontSize: 12 }}>{new Date(`${d.date}T12:00:00`).toLocaleDateString(ar ? 'ar' : 'en', { weekday: 'narrow' })}</AppText>
-          <ActivityRings rings={d.rings} size={34} stroke={4} animate={false} />
+          <ActivityRings rings={d.rings} size={compact ? 26 : 30} stroke={3} animate={false} />
         </Pressable>; })}
     </View>
   </View>;

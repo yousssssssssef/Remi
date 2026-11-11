@@ -58,7 +58,7 @@ function ConfirmationSession({ id, requestedServings }: { id: string; requestedS
     preparation.prepare(() => { const meal = new CookedMealStore(getAuth(), AsyncStorage, recipe,
         mealRows(recipe, suggestion, kitchen.items, kitchen.today), guessMealType(new Date()),
         async () => { const inventory = await kitchen.refreshAfterMeal(); await recipes.refreshAfterMeal(id, inventory); },
-        () => { recipes.showMealRemoved(id); router.replace({ pathname: '/recipes/[id]', params: { id } }); });
+        () => { recipes.showMealRemoved(id); router.dismissTo('/'); });
       if (requestedServings && /^\d+$/.test(requestedServings) && Number(requestedServings) >= 1 && Number(requestedServings) <= 20) meal.change('servings', requestedServings);
       return meal; });
   }, [store, initialError, detail, kitchen, recipes, id, preparation, requestedServings]);

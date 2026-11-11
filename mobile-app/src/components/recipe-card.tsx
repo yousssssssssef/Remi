@@ -72,8 +72,8 @@ export function RecipeCard({ id, name, time, caption, energy, note, details = []
 
 /**
  * Two columns of recipe cards. The first batch of cards fades up once, staggered, when the grid first fills (the
- * content the person opened the screen for). Later changes, such as switching tabs, appear at once: they happen
- * too often to animate.
+ * content the person opened the screen for). Category switches key a fresh grid to share that entrance;
+ * loading more or changing search results keeps the current grid and does not replay it.
  */
 export function RecipeGrid({ children }: { children: React.ReactNode }) {
   const reduced = useReducedMotion();

@@ -72,16 +72,16 @@ export function createGraphqlRecipeRepository(auth: Auth, storage: ActiveHouseho
     if (new Set(result.nodes.map(n => n.recipe.id)).size !== result.nodes.length) throw invalid();
     return result;
   }
-  async function namesFor(current: Context, ids: string[]) {
+  async function namesFor(current: Context, ids: string[], foodNames?: ReadonlyMap<string, string>) {
     try {
-      const names = await loadCachedCatalogArabicNames(auth, ids);
+      const names = await loadCachedCatalogArabicNames(auth, ids, foodNames);
       await revalidate(current);
       return names;
     } catch (error) { assertContext(current); throw error; }
   }
   async function enrich(current: Context, nodes: RecipeSuggestion[]) {
     const refs = nodes.flatMap(n => [...n.missing, ...n.expired, ...n.expiringSoon]);
-    const names = await namesFor(current, refs.map(i => i.foodId));
+    const names = await namesFor(current, refs.map(i => i.foodId), new Map(refs.map(i => [i.foodId, i.foodName])));
     return nodes.map(node => ({ ...node,
       expired: node.expired.map(item => ({ ...item, arabicName: names.get(item.foodId) })),
       missing: node.missing.map(item => ({ ...item, arabicName: names.get(item.foodId) })),
@@ -108,7 +108,7 @@ export function createGraphqlRecipeRepository(auth: Auth, storage: ActiveHouseho
       for (const item of recipe.ingredients) {
         if (!Object.values(BackendUnit).includes(item.unit) || parseDecimal(item.quantity) <= 0n) throw invalid();
       }
-      const names = await namesFor(current, recipe.ingredients.map(i => i.foodId));
+      const names = await namesFor(current, recipe.ingredients.map(i => i.foodId), new Map(recipe.ingredients.map(i => [i.foodId, i.foodName])));
       return { ...recipe, ingredients: recipe.ingredients.map(i => ({ ...i, arabicName: names.get(i.foodId) })), steps: [...recipe.steps].sort((a, b) => a.stepNumber - b.stepNumber) };
     },
     async findSuggestion(id) {

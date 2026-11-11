@@ -11,7 +11,7 @@ function gate() {
   const { StartupGate } = load('src/components/startup-gate.tsx', {
     react: { useState: () => [opened, value => { opened = value; }] },
     '@/providers/auth-provider': { useAuth: () => state.auth }, '@/providers/language-provider': { useLanguage: () => state.language },
-    '@/theme/provider': { useRemyTheme: () => state.theme }, '@/theme/fonts': { useRemyFonts: () => state.fonts }, './app-skeleton': { AppSkeleton: 'Skeleton' },
+    '@/theme/tokens': { palette: { 'Lemon Yellow': '#F8E45C', 'Cobalt Blue': '#1734BE' } }, '@/theme/provider': { useRemyTheme: () => state.theme }, '@/theme/fonts': { useRemyFonts: () => state.fonts }, './app-skeleton': { AppSkeleton: 'Skeleton' },
   });
   return { state, render: () => StartupGate({ children: 'navigation' }) };
 }
@@ -29,13 +29,15 @@ test('a failed preference read uses the available language instead of trapping s
 test('skeleton respects Reduce Motion and exposes one indeterminate loading surface without buttons', () => {
   for (const reduced of [false,true]) {
     const { AppSkeleton } = load('src/components/app-skeleton.tsx', {
-      'react-native': { ScrollView: 'ScrollView', View: 'View' }, 'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
+      'react-native': { ScrollView: 'ScrollView', View: 'View' }, 'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({top:59,bottom:34,left:0,right:0}) },
       'expo-status-bar': { StatusBar: 'StatusBar' }, 'expo-splash-screen': { hide() {} },
       'react-native-reanimated': { __esModule: true, default: { createAnimatedComponent: () => 'Pulse' }, useReducedMotion: () => reduced },
-      './brand': { Brand: 'Brand' }, '@/theme/provider': { useRemyTheme: () => ({ colors: {}, mode: 'light' }) }, '@/providers/language-provider': { useLanguage: () => ({ language: 'ar' }) }, './ui/core': { AppText: 'AppText' },
+      './brand': { Brand: 'Brand' }, '@/theme/tokens': { palette: { 'Lemon Yellow': '#F8E45C', 'Cobalt Blue': '#1734BE' } }, '@/theme/provider': { useRemyTheme: () => ({ colors: { hero: 'yellow' }, mode: 'light' }) }, '@/providers/language-provider': { useLanguage: () => ({ language: 'ar' }) }, './ui/core': { AppText: 'AppText' },
     });
     const nodes = n => Array.isArray(n) ? n.flatMap(nodes) : !n || typeof n !== 'object' ? [] : [n,...nodes(n.props?.children)];
     const tree = nodes(AppSkeleton({})), loader = tree.find(n => n.props?.testID === 'app-startup-skeleton');
+    assert.equal(tree.find(n => n.props?.testID === 'startup-status-background').props.style.backgroundColor, 'yellow');
+    assert.equal(tree.some(n => n.type === 'Brand' && n.props.kind === 'wordmark'), true);
     assert.equal(loader.props.accessibilityRole,'progressbar'); assert.equal(loader.props.accessibilityState.busy,true);
     assert.match(loader.props.accessibilityLabel,/جارٍ/);
     assert.equal(tree.some(n => n.props?.accessibilityRole === 'button'),false);

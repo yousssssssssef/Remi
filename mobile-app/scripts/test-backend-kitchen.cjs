@@ -292,21 +292,21 @@ function homeLayoutHarness(backend, language = 'en', homePlan = { upcoming: [], 
   const code = ts.transpileModule(fs.readFileSync('src/screens/home-screen.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
   const kitchen = backend ?? { items: [], status: 'signed-out', today: '2026-06-02' };
   new Function('require', 'exports', code)(id => {
-    if (id === 'react') return { useCallback: f => f, useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; } };
-    if (id === 'expo-router') return { useFocusEffect: () => {}, router: { navigate: p => routes.push(p), push: p => routes.push(p) } };
+    if (id === 'react') return { useCallback: f => f, useRef: value => ({ current: value }), useState: initial => { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; } };
+    if (id === 'expo-router') return { useScrollToTop: () => {}, useFocusEffect: () => {}, router: { navigate: p => routes.push(p), push: p => routes.push(p) } };
     if (id === 'expo-image') return { Image: 'Image' };
     if (id === 'react-native') return { Pressable: 'Pressable', ScrollView: 'ScrollView', View: 'View' };
     if (id === '@/components/brand') return { Brand: 'Brand' };
     if (id === '@/components/recipe-card') return { ...Object.fromEntries(['RecipeArt', 'RecipeCard', 'RecipeGrid', 'RecipeTabs'].map(n => [n, n])), useGridCardWidth: () => 180,
       recipeTabs: () => [{ key: 'all', label: 'All' }], filterRecipes: recipes => [...recipes], recipeMinutes: recipe => (recipe.prepTimeMin ?? 0) + (recipe.cookTimeMin ?? 0) };
-    if (id === '@/theme/tokens') return { spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } };
+    if (id === '@/theme/tokens') return { palette: { 'Lemon Yellow': '#F8E45C', 'Cobalt Blue': '#1734BE' }, spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } };
     if (id === '@/components/ui/core') return { ...Object.fromEntries(['AppText','Button','Card','Screen','SearchField','SectionHeader'].map(n => [n,n])), uiStyles: {} };
     if (id === '@/components/ui/icon') return { Icon: 'Icon' };
     if (id === '@/providers/language-provider') return { useLanguage: () => ({ language }) };
     if (id === '@/providers/auth-provider') return { useAuth: () => ({ user: kitchen.status === 'signed-out' ? null : { id: 'a' } }) };
     if (id === '@/providers/backend-kitchen-provider') return { useBackendKitchen: () => kitchen };
     if (id === '@/theme/provider') return { useRemyTheme: () => ({ colors: {}, mode: 'light' }) };
-    if (id === './connected-ui') return { DataNotice: 'DataNotice', Feedback: 'Feedback', useAction: () => ({ busy: false, message: null, run: async action => { await action(); return true; } }), useKitchenData: () => ({ data: { recipes: [{ id: 'real', name: 'Tomato pasta', servings: 2, prepTimeMin: 5, cookTimeMin: 10 }], ...homePlan }, loading: false, reload: async () => {} }) };
+    if (id === './connected-ui') return { DataNotice: 'DataNotice', Feedback: 'Feedback', useAction: () => ({ busy: false, message: null, run: async action => { await action(); return true; } }), useKitchenData: (_load, key) => ({ data: key === 'home-catalogue' ? (homePlan.catalogueLoading ? null : homePlan.recipes ?? [{ id: 'real', name: 'Tomato pasta', servings: 2, prepTimeMin: 5, cookTimeMin: 10 }]) : homePlan, loading: key === 'home-catalogue' && !!homePlan.catalogueLoading, reload: async () => {} }) };
     if (id === './backend-home-recipe-ideas') return { BackendHomeRecipeIdeas: 'BackendRecipeIdeas' };
     if (id === '@/components/app-skeleton') return { AppSkeleton: 'AppSkeleton' };
     if (id === '@/data/ingredient-images') return { ingredientImage: () => undefined };
@@ -340,10 +340,14 @@ test('cookbook Home presents one sign-in action and no household content when si
     assert.equal(h.nodes(tree, 'BackendRecipeIdeas').length, 0);
   }
 });
+test('Home counts ingredient identities rather than batches and omits zero stock', () => {
+  const h = homeLayoutHarness({ items: [item, { ...item, id: 'batch-2' }, { ...item, id: 'empty', foodId: 'empty-food', quantity: '0' }], status: 'ready', today: '2026-06-02' });
+  assert(h.nodes(h.render(), 'AppText').some(node => node.props.children === '1 ingredient in your kitchen'));
+});
 test('cookbook Home preserves pantry priorities, ranked backend ideas, recipes and the meal plan', () => {
   const h = homeLayoutHarness({ items: [item], status: 'ready', today: '2026-06-02' }), tree = h.render();
   assert.equal(h.nodes(tree, 'BackendRecipeIdeas').length, 1);
-  for (const text of ['Use first', 'Upcoming meals']) assert(h.nodes(tree,'AppText').some(n => n.props.children === text) || h.nodes(tree,'SectionHeader').some(n => n.props.title === text));
+  for (const text of ['Use first', 'Upcoming meals']) assert(h.nodes(tree,'AppText').some(n => [n.props.children].flat().includes(text)) || h.nodes(tree,'SectionHeader').some(n => n.props.title === text));
   h.nodes(tree,'Button').find(n => n.props.label === 'Plan a meal').props.onPress(); assert.equal(h.routes.at(-1), '/plan');
   assert.equal(h.nodes(tree, 'BackendRecipeIdeas')[0].props.title, 'Tonight, sorted.');
   assert.ok(!h.nodes(tree, 'SectionHeader').some(n => n.props.title === 'In your shopping list'));
@@ -456,4 +460,22 @@ test('flag off routes preserve original components; flag on also guards direct a
     assert.equal(exported.default().type, 'LocalScreen', file);
     enabled = true; assert.equal(exported.default().type, backend, file);
   }
+});
+
+test('Home keeps blue branding, hides empty urgency and shows recommendations before the catalogue finishes', () => {
+  for (const language of ['en', 'ar']) {
+    const h = homeLayoutHarness({ items: [], status: 'ready', today: '2026-06-02' }, language, { upcoming: [], onList: [], catalogueLoading: true });
+    const tree = h.render();
+    assert.deepEqual(h.nodes(tree, 'Brand').map(node => [node.props.kind, node.props.color]), [['wordmark', '#1734BE'], ['mascot', '#1734BE']]);
+    assert.equal(h.nodes(tree, 'AppSkeleton').length, 0);
+    assert.equal(h.nodes(tree, 'BackendRecipeIdeas').length, 1);
+    assert.equal(h.nodes(tree, 'Pressable').some(n => n.props.accessibilityLabel?.startsWith(language === 'en' ? 'Use first.' : 'استخدم أولاً.')), false);
+    assert(h.nodes(tree, 'Screen')[0].props.scrollRef);
+  }
+});
+test('bundled catalogue translations avoid a network catalogue crawl', async () => {
+  let calls = 0;
+  const auth = { getIdentityRevision: () => 1, authenticatedGraphql: async () => { calls++; throw Error('Unexpected network'); } };
+  const names = await loadInventoryArabicNames(auth, ['t', 'o'], new Map([['t', 'tomato'], ['o', 'olive oil']]));
+  assert.equal(calls, 0); assert.equal(names.get('t'), 'طماطم'); assert.equal(names.get('o'), 'زيت زيتون');
 });

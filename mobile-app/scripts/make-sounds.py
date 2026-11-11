@@ -8,7 +8,7 @@ OUT = Path(__file__).resolve().parent.parent / 'assets' / 'sounds'
 
 def tone(freq, length, decay, amp, start=0.0, glide_to=None, harmonics=((1, 1.0), (2, 0.18))):
     """One note: frequency (optionally gliding), decay time constant in seconds, peak amplitude."""
-    n = int(length * RATE); out = [0.0] * int((start + length) * RATE); phase = 0.0
+    n = int(length * RATE); out = [0.0] * (int(start * RATE) + n); phase = 0.0
     for i in range(n):
         t = i / RATE
         f = freq if glide_to is None else freq + (glide_to - freq) * min(1.0, t / (length * 0.6))
@@ -34,4 +34,7 @@ write('success', mix(tone(1047, 0.22, 0.07, 0.2), tone(1568, 0.3, 0.09, 0.2, sta
 write('remove', tone(260, 0.14, 0.045, 0.3, glide_to=170, harmonics=((1, 1.0),)))           # something removed
 write('error', mix(tone(440, 0.16, 0.06, 0.18, harmonics=((1, 1.0), (3, 0.12))),
                    tone(349, 0.22, 0.08, 0.18, start=0.11, harmonics=((1, 1.0), (3, 0.12)))))  # it didn't work
+write('cooking-step', mix(tone(880, 0.12, 0.04, 0.16), tone(1175, 0.18, 0.06, 0.18, start=0.06)))
+write('cooking-ding', mix(tone(1319, 0.4, 0.12, 0.18), tone(1760, 0.5, 0.15, 0.12, start=0.08)))
+write('cooking-finish', mix(tone(784, 0.25, 0.08, 0.14), tone(988, 0.25, 0.08, 0.14, start=0.1), tone(1175, 0.25, 0.08, 0.14, start=0.2), tone(1568, 0.55, 0.18, 0.18, start=0.3)))
 print(sorted(p.name for p in OUT.glob('*.wav')))

@@ -55,7 +55,7 @@ function CatalogueScreen({ initial, onSuggestions }: { initial: string; onSugges
     </View>
     <DataNotice {...state} />
     {!state.loading && state.data && !visible.length && <EmptyState title={copy('No recipes found', 'لم نجد وصفات')} description={copy('Try another search or clear your filters.', 'جرّب بحثًا آخر أو امسح عوامل التصفية.')} action={copy('Clear filters', 'مسح التصفية')} onPress={() => { setQuery(''); setTab('all'); }} />}
-    <RecipeGrid>{visible.slice(0, limit).map(recipe => <RecipeCard key={recipe.id} id={recipe.id} name={recipe.name} image={recipe.imageUrl} time={time(recipe)} energy={energyLabel(recipe.nutrition, language)} caption={recipe.sourceName ?? (tab.startsWith('cuisine:') || !recipe.cuisineName ? copy(`${recipe.servings} servings`, `${recipe.servings} حصص`) : recipe.cuisineName)} width={width}
+    <RecipeGrid key={tab}>{visible.slice(0, limit).map(recipe => <RecipeCard key={recipe.id} id={recipe.id} name={recipe.name} image={recipe.imageUrl} time={time(recipe)} energy={energyLabel(recipe.nutrition, language)} caption={recipe.sourceName ?? (tab.startsWith('cuisine:') || !recipe.cuisineName ? copy(`${recipe.servings} servings`, `${recipe.servings} حصص`) : recipe.cuisineName)} width={width}
       onPress={() => router.push({ pathname: '/recipes/[id]', params: { id: recipe.id } })} />)}</RecipeGrid>
     {visible.length > limit && <Button label={copy(`Load more (${visible.length - limit} left)`, `تحميل المزيد (${visible.length - limit})`)} variant="secondary" onPress={() => setLimit(limit + 24)} />}
   </ConnectedScreen>;

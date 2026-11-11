@@ -61,18 +61,18 @@ const stale = () => Object.assign(new Error('Restart pagination'), { codes: ['ST
 test('recipe pages attach the household, preserve the connection and reuse catalog Arabic aliases', async () => {
   const h = harness({ pages: [page([suggestion('one')], true, 'next'), page([suggestion('two')])] });
   const first = await h.repository.list(); const last = await h.repository.list(first.endCursor);
-  assert.equal(first.nodes[0].missing[0].arabicName, 'عربي tomato'); assert.equal(last.nodes[0].recipe.id, 'two');
+  assert.equal(first.nodes[0].missing[0].arabicName, 'طماطم'); assert.equal(last.nodes[0].recipe.id, 'two');
   assert.equal(first.hasNextPage, true); assert.equal(last.hasNextPage, false);
   const requests = h.calls.filter(c => c.query === recipeReadOperations.list);
   assert.deepEqual(requests.map(c => c.variables.after), [null, 'next']); assert(requests.every(c => c.household === 'home-a'));
-  assert.equal(h.calls.filter(c => c.query === catalogArabicNamesOperation).length, 1, 'later pages reuse catalog names instead of exhausting the per-food resolver rate limit');
+  assert.equal(h.calls.filter(c => c.query === catalogArabicNamesOperation).length, 0, 'bundled names need no catalogue requests on either page');
 });
 test('successful load-more appends after shared paginated catalog names, without per-food requests', async () => {
   const h = harness({ pages: [page([suggestion('one')], true, 'next'), page([suggestion('two')])] });
   const store = new BackendRecipesStore(() => h.repository); store.setOwner('a'); await store.refresh(); await store.loadMore();
   assert.deepEqual(store.getSnapshot().nodes.map(n => n.recipe.id), ['one', 'two']);
   assert.equal(store.getSnapshot().moreError, false);
-  assert.equal(h.calls.filter(c => c.query === catalogArabicNamesOperation).length, 1);
+  assert.equal(h.calls.filter(c => c.query === catalogArabicNamesOperation).length, 0);
 });
 test('catalog names load every page once, share concurrent reads and isolate identity changes', async () => {
   let revision = 1, calls = 0;
@@ -136,7 +136,7 @@ test('recipe detail uses recipe(id), exact quantities, catalog aliases and order
   const raw = detail(); raw.ingredients[0].unit = 'TABLESPOON'; raw.steps.unshift({ id: 'second', stepNumber: 2, instruction: 'Second.', durationMin: 0 });
   const h = harness({ recipe: raw }); const result = await h.repository.get('one');
   assert.equal(result.ingredients[0].unit, 'TABLESPOON'); assert.equal(result.ingredients[0].quantity, '2.000');
-  assert.equal(result.ingredients[0].arabicName, 'عربي tomato'); assert.deepEqual(result.steps.map(s => s.stepNumber), [1, 2]);
+  assert.equal(result.ingredients[0].arabicName, 'طماطم'); assert.deepEqual(result.steps.map(s => s.stepNumber), [1, 2]);
   assert.equal(h.calls.find(c => c.query === recipeReadOperations.get).household, 'home-a');
 });
 for (const mode of ['identity', 'household']) test(`recipe reads discard responses after a ${mode} change`, async () => {
@@ -146,7 +146,7 @@ for (const mode of ['identity', 'household']) test(`recipe reads discard respons
   response.resolve({ recipeSuggestions: page() }); await assert.rejects(pending, error => error.code === 'STALE_CONTEXT');
 });
 test('identity changes during catalog alias loading discard metadata and data together', async () => {
-  const alias = deferred(), h = harness({ catalog: () => alias.promise });
+  const alias = deferred(), h = harness({ pages: [page([suggestion('custom', { missing: [{ foodId: 'custom', foodName: 'Family ingredient' }] })])], catalog: () => alias.promise });
   const pending = h.repository.list(); await tick(); h.switchUser(); alias.resolve({ foods: { nodes: [{ id: 'tomato', aliases: [] }], hasNextPage: false, endCursor: null } });
   await assert.rejects(pending, error => error.code === 'STALE_CONTEXT');
 });
@@ -311,7 +311,7 @@ test('recipe ingredients render without Intl.PluralRules on the native runtime',
 test('expired foods stay separate from missing on cards and required/optional detail rows in both languages', async () => {
   const expired = { ...food('expired'), arabicName: 'طماطم' };
   const h = harness({ pages: [page([suggestion('one', { missing: [], expired: [food()], expiringSoon: [] })])] });
-  assert.equal((await h.repository.list()).nodes[0].expired[0].arabicName, 'عربي tomato');
+  assert.equal((await h.repository.list()).nodes[0].expired[0].arabicName, 'طماطم');
   const node = suggestion('one', { missing: [food('absent')], expired: [expired], optional: [{ ...food('optional'), status: 'EXPIRED' }] });
   for (const language of ['en', 'ar']) {
     const text = language === 'en' ? 'Expired: Expired' : 'منتهي الصلاحية: طماطم';
@@ -453,8 +453,12 @@ function cookingUi() {
   h.mocks['react-native-reanimated'] = { ...require('./native-ui-fixture.cjs').fixtureModule('react-native-reanimated'), default: { View: 'AnimatedView', createAnimatedComponent: component => component } };
   h.mocks['expo-keep-awake'] = { useKeepAwake: () => {} };
   h.mocks['@/components/step-timer'] = { StepTimer: 'StepTimer' };
+  h.mocks['@/hooks/use-cooking-journey'] = { useCookingJourney: () => ({ ...h.mocks['@/providers/backend-recipes-provider'].useBackendCookingSession(), restoring: false, history: {} }) };
+  h.mocks['@/services/cooking-journal'] = require('../src/services/cooking-journal.ts');
+  h.mocks['@/components/cooking-mascot'] = { CookingMascot: 'CookingMascot', CookingConfetti: 'CookingConfetti' };
   h.mocks['@/components/ui/core'].Chip = 'Chip';
   h.mocks['expo-router'].useLocalSearchParams = () => ({ id: 'one' });
+  h.mocks['expo-router'].router.dismissTo = route => h.pushed.push(route);
   h.mocks['@/utils/cooking-session'] = cookingUtils;
   h.mocks['@/providers/backend-recipes-provider'].useBackendCookingSession = () => ({ session: progress, update: change => { progress = change(progress); } });
   const { BackendCookingScreen } = loadTsx('src/screens/backend-cooking-screen.tsx', h.mocks);
@@ -488,10 +492,10 @@ test('backend Cooking orders English steps and durations, shows every read-only 
     segments()[1].props.onPress(); tree = h.render();
     nodes(tree, 'Button').find(n => n.props.label === cookingMessages[language].finish).props.onPress(); tree = h.render();
     assert.equal(h.progress().finished, true);
-    nodes(tree, 'Button').find(n => n.props.label === cookedItMessages[language].yes).props.onPress();
-    assert.deepEqual(h.pushed.at(-1), { pathname: '/cooked-it', params: { id: 'one' } });
-    nodes(tree, 'Button').find(n => n.props.label === cookedItMessages[language].notNow).props.onPress();
-    assert.deepEqual(h.pushed.at(-1), { pathname: '/recipes/[id]', params: { id: 'one' } });
+    nodes(tree, 'Button').find(n => n.props.label === (language === 'ar' ? 'تسجيل هذه الوجبة' : 'Log this meal')).props.onPress();
+    assert.deepEqual(h.pushed.at(-1), { pathname: '/cooked-it', params: { id: 'one', servings: String(recipe.servings) } });
+    nodes(tree, 'Button').find(n => n.props.label === (language === 'ar' ? 'العودة للرئيسية' : 'Back to Home')).props.onPress();
+    assert.equal(h.pushed.at(-1), '/');
     assert.equal(h.counts().get, 1, 'completing and Done do not request any inventory mutation');
   }
   assert.doesNotMatch(fs.readFileSync('src/screens/backend-cooking-screen.tsx', 'utf8'), /consumeStock|adjustStock|discardStock|addStock|setInterval|setTimeout/);

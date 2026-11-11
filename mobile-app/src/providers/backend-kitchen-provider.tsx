@@ -29,7 +29,7 @@ function EnabledBackendKitchenProvider({ children }: PropsWithChildren) {
       const revision = getActiveHouseholdRevision(auth);
       const identity = auth.getIdentityRevision();
       const items = await read();
-      const names = await loadInventoryArabicNames(auth, items.map(item => item.foodId));
+      const names = await loadInventoryArabicNames(auth, items.map(item => item.foodId), new Map(items.map(item => [item.foodId, item.name])));
       const current = await resolveActiveHousehold(auth, AsyncStorage);
       if (revision !== getActiveHouseholdRevision(auth) || identity !== auth.getIdentityRevision() || current.id !== household.id) {
         throw new InventoryReadError('STALE_CONTEXT', 'Your account or active household changed. Please reload.');

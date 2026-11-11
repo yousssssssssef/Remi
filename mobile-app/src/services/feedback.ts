@@ -6,7 +6,7 @@
  * Sounds follow the ring/silent switch and mix with whatever else is playing.
  */
 type Storage = { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
-type SoundName = 'tick' | 'pop' | 'success' | 'remove' | 'error';
+type SoundName = 'tick' | 'pop' | 'success' | 'remove' | 'error' | 'cooking-step' | 'cooking-ding' | 'cooking-finish';
 export interface FeedbackSettings { sounds: boolean; haptics: boolean }
 
 const KEY = 'remi.feedback.v1';
@@ -28,6 +28,9 @@ const storage = lazy(() => (require('@react-native-async-storage/async-storage')
 /* eslint-enable @typescript-eslint/no-require-imports */
 const isWeb = () => nativePlatform() !== 'ios' && nativePlatform() !== 'android';
 const sources: Record<SoundName, () => number> = {
+  'cooking-step': () => require('../../assets/sounds/cooking-step.wav'),
+  'cooking-ding': () => require('../../assets/sounds/cooking-ding.wav'),
+  'cooking-finish': () => require('../../assets/sounds/cooking-finish.wav'),
   tick: () => require('../../assets/sounds/tick.wav'),
   pop: () => require('../../assets/sounds/pop.wav'),
   success: () => require('../../assets/sounds/success.wav'),
@@ -54,6 +57,9 @@ function sound(name: SoundName) {
 }
 
 export const feedback = {
+  cookingStep: () => { haptic(h => h.impactAsync(h.ImpactFeedbackStyle.Light)); sound('cooking-step'); },
+  timerDone: () => { haptic(h => h.notificationAsync(h.NotificationFeedbackType.Success)); sound('cooking-ding'); },
+  cookingFinish: () => { haptic(h => h.notificationAsync(h.NotificationFeedbackType.Success)); sound('cooking-finish'); },
   /** A value ticked to another step: a tab, a chip, a stepper. Haptic only. */
   select: () => haptic(h => h.selectionAsync()),
   /** An item checked off or toggled on. */

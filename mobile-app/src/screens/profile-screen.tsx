@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
+import { Brand } from '@/components/brand';
+import { palette } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText, Button, Card, PageHeader, Screen } from '@/components/ui/core';
@@ -21,6 +23,7 @@ export default function ProfileScreen() {
     <Button label={t.backMore} icon="back" rtl={rtl} variant="text" onPress={() => router.canGoBack() ? router.back() : router.replace('/more')} />
     <PageHeader title={t.profile} />
     {!auth.ready ? <AppText>{t.restoring}</AppText> : auth.user ? <Card>
+      <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: palette['Lemon Yellow'], borderWidth: 1.5, borderColor: palette['Cobalt Blue'], alignItems: 'center', justifyContent: 'center' }}><Brand kind="mascot" height={52} color={palette['Cobalt Blue']} /></View>
       <AppText variant="heading">{auth.user.name}</AppText><AppText>{auth.user.email}</AppText>
       <AppText muted>{auth.user.emailVerifiedAt ? t.signedIn : t.verificationPending}</AppText>
       <Button label={auth.busy ? t.wait : t.logout} disabled={auth.busy} onPress={() => { void auth.logout(); }} />

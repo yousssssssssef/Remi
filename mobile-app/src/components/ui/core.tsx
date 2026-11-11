@@ -13,6 +13,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 const ScreenDirection = createContext<boolean | undefined>(undefined);
 export const ScreenDirectionProvider = ScreenDirection.Provider;
+const BottomNavigationInset = createContext(0);
+export const BottomNavigationInsetProvider = BottomNavigationInset.Provider;
 export function AppText({ variant = 'body', muted = false, style, dir, ...props }: TextProps & { variant?: TextVariant; muted?: boolean; dir?: 'rtl' | 'ltr' }) {
   const { colors } = useRemyTheme();
   const fonts = useRemyFonts();
@@ -30,10 +32,11 @@ export function PageHeader({ title, subtitle, subtitleDirection, action, back }:
     <AppText variant="title" accessibilityRole="header" style={uiStyles.grow}>{title}</AppText>{action}
   </View>{subtitle && <AppText muted dir={subtitleDirection}>{subtitle}</AppText>}</View>;
 }
-export function Screen({ children, rtl, scrollRef, footer, refreshControl, contentGap = spacing.xl }: PropsWithChildren<{ rtl?: boolean; scrollRef?: Ref<ScrollViewInstance>; footer?: React.ReactNode; refreshControl?: ReactElement<RefreshControlProps>; contentGap?: number }>) {
+export function Screen({ children, rtl, scrollRef, footer, refreshControl, contentGap = spacing.xl, topColor }: PropsWithChildren<{ rtl?: boolean; scrollRef?: Ref<ScrollViewInstance>; footer?: React.ReactNode; refreshControl?: ReactElement<RefreshControlProps>; contentGap?: number; topColor?: string }>) {
   const { colors } = useRemyTheme();
-  return <ScreenDirectionProvider value={rtl}><View style={{ flex: 1, backgroundColor: colors.background }}><ScrollView ref={scrollRef} refreshControl={refreshControl} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-    contentContainerStyle={[styles.screen, { gap: contentGap }, rtl !== undefined && { direction: rtl ? 'rtl' : 'ltr' }]}>{children}</ScrollView>{footer && <View style={{ paddingHorizontal: 20, paddingVertical: spacing.md, backgroundColor: colors.background, borderTopWidth: 1, borderColor: colors.divider }}>{footer}</View>}</View></ScreenDirectionProvider>;
+  const bottomNavigationInset = useContext(BottomNavigationInset);
+  return <ScreenDirectionProvider value={rtl}><View style={{ flex: 1, backgroundColor: colors.background }}>{topColor && <View pointerEvents="none" testID="screen-top-bounce" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: topColor }} />}<ScrollView ref={scrollRef} refreshControl={refreshControl} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+    contentContainerStyle={[styles.screen, { gap: contentGap, paddingBottom: 20 + bottomNavigationInset, ...(topColor && { backgroundColor: colors.background }) }, rtl !== undefined && { direction: rtl ? 'rtl' : 'ltr' }]}>{children}</ScrollView>{footer && <View style={{ paddingHorizontal: 20, paddingVertical: spacing.md, backgroundColor: colors.background, borderTopWidth: 1, borderColor: colors.divider }}>{footer}</View>}</View></ScreenDirectionProvider>;
 }
 export function Card({ style, ...props }: ViewProps) {
   const { colors } = useRemyTheme();
