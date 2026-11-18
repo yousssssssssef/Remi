@@ -2,7 +2,7 @@
 
 Remi on your counter: a 1.8" screen, one knob and a speaker, driven by an ESP32. It talks to the Remi API in [`backend/`](../backend). It shows the time, what's in your kitchen and what to use first. It puts away your groceries, walks you through recipes with timers, and speaks in Remi's own voice. A microphone for talking to Remi is planned.
 
-- **3D build guide and live simulator:** [`sim/index.html`](sim/index.html). It shows today's ESP32-CAM bench build, the full wired build, an exploded enclosure and the finished Remi. The 3D screen runs the **real firmware UI and sounds**, compiled to WebAssembly, and you can turn the 3D knob.
+- **3D build guide and live simulator:** [`sim/`](sim). See [how to run it](sim/README.md). It shows today's ESP32-CAM bench build, the full wired build, an exploded enclosure and the finished Remi. The 3D screen runs the **real firmware UI and sounds**, compiled to WebAssembly, and you can turn the 3D knob.
 - **Preview video with sound:** [`preview/remi-device-preview.mp4`](preview/remi-device-preview.mp4) · screens: [`preview/screens.png`](preview/screens.png)
 - **Firmware:** [`firmware/Remi_Device/`](firmware/Remi_Device)
 
