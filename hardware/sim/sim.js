@@ -268,7 +268,13 @@ function makeKY040(productKnob = false) {
 
 const loader = new GLTFLoader();
 async function loadGLB(url) {
-  const gltf = await loader.loadAsync(url);
+  // Hosts that won't serve .glb get the same bytes as .bin (GLTFLoader reads the binary header either way).
+  const gltf = await loader.loadAsync(url).catch(async () => {
+    // Hosts that won't serve .glb get the same bytes as a base64 JS module (models/<name>.glb.js).
+    const b64 = (await import(`./${url}.js`)).default;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return loader.parseAsync(bytes.buffer, '');
+  });
   gltf.scene.scale.setScalar(1000);  // metres -> mm
   gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
   return gltf.scene;
