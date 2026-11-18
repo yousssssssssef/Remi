@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Remi device · 3D build simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap">
+<style>
+  :root {
+    --lemon: #F8E45C; --cobalt: #1734BE; --pink: #ED2B8C; --pink-text: #C2146C; --ink: #0E1440;
+    --paper: #FFFDF4; --pale-lemon: #FCF4C4; --muted: rgba(14,20,64,.62); --line: rgba(14,20,64,.1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font: 14px/1.45 "DM Sans", system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100vh; overflow: hidden; }
+  #stage { position: relative; min-height: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  aside { border-left: 1px solid var(--line); background: #fff; overflow-y: auto; padding: 20px 20px 28px; }
+  h1 { font-size: 20px; font-weight: 800; letter-spacing: -.3px; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  h2 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+  .seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .seg button, .pill, .ctl button {
+    font: 600 13px "DM Sans", sans-serif; border: 0; border-radius: 999px; cursor: pointer; min-height: 40px;
+    transition: transform .12s ease-out, background-color .15s ease-out;
+  }
+  .seg button { background: var(--pale-lemon); color: var(--ink); padding: 0 12px; }
+  .seg button[aria-pressed="true"] { background: var(--lemon); box-shadow: inset 0 0 0 2px var(--ink); }
+  .seg button:active, .pill:active, .ctl button:active { transform: scale(.97); }
+  .ctl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .ctl button { background: var(--cobalt); color: #fff; }
+  .ctl button.alt { background: var(--pale-lemon); color: var(--ink); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pill { background: var(--pale-lemon); color: var(--ink); padding: 0 14px; }
+  .pill[aria-pressed="true"] { background: var(--cobalt); color: #fff; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+  .card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-top: 8px; }
+  .card h3 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+  .card .meta { color: var(--muted); font-size: 12.5px; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td { padding: 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  td:first-child { font-weight: 600; width: 38%; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  ol.steps li { counter-increment: s; position: relative; padding: 10px 10px 10px 40px; border-radius: 12px; cursor: pointer; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 10px; top: 10px; width: 22px; height: 22px; border-radius: 50%; background: var(--pale-lemon); font-weight: 700; font-size: 12px; display: grid; place-items: center; }
+  ol.steps li[aria-current="step"] { background: var(--pale-lemon); }
+  ol.steps li[aria-current="step"]::before { background: var(--cobalt); color: #fff; }
+  ol.steps b { display: block; font-weight: 700; }
+  ol.steps span { color: var(--muted); font-size: 12.5px; }
+  .tag { position: absolute; pointer-events: none; transform: translate(-50%, -130%); background: var(--ink); color: #fff; font: 600 11px "DM Sans", sans-serif; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .tag.small { background: rgba(255,255,255,.92); color: var(--ink); font-weight: 600; font-size: 10px; padding: 1px 6px; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 600; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; }
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; grid-template-rows: 58vh 1fr; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"><div id="loading">Loading Remi…</div></div>
+<aside>
+  <h1>Remi device</h1>
+  <p class="sub">3D build guide and live simulation. The screen runs Remi's real firmware UI and sounds.</p>
+
+  <h2>View</h2>
+  <div class="seg" id="views">
+    <button data-view="today">Today: ESP32-CAM</button>
+    <button data-view="bench">Full build: wiring</button>
+    <button data-view="exploded">Exploded enclosure</button>
+    <button data-view="product">Finished Remi</button>
+  </div>
+
+  <h2>Use the device</h2>
+  <div class="ctl">
+    <button id="left" aria-label="Turn knob left">⟲ Left</button>
+    <button id="press" aria-label="Press knob">Press</button>
+    <button id="right" aria-label="Turn knob right">Right ⟳</button>
+    <button id="hold" class="alt" aria-label="Hold knob">Hold</button>
+  </div>
+  <div class="row">
+    <button class="pill" id="sound" aria-pressed="false">Sound off</button>
+    <button class="pill" id="replay">Replay intro</button>
+    <button class="pill" id="wires" aria-pressed="true">Wires</button>
+    <button class="pill" id="labels" aria-pressed="true">Labels</button>
+  </div>
+  <p class="hint">Drag the 3D knob to turn it, click it to press, or hold it to go back. Arrow keys, Space and Esc work too. Drag empty space to orbit, and scroll to zoom.</p>
+
+  <div id="steps-wrap">
+    <h2 id="steps-title">Build steps</h2>
+    <ol class="steps" id="steps"></ol>
+  </div>
+
+  <h2>Selected part</h2>
+  <div class="card" id="part"><div class="meta">Click a part in the 3D view.</div></div>
+
+  <h2>Wire colours</h2>
+  <div class="legend" id="legend"></div>
+  <p class="hint">3D models: MAX98357A amp and 40 mm speaker from Adafruit's open CAD library (MIT, converted from STEP with occt-import-js). The other parts are modelled from their datasheet dimensions. Rendering: three.js.</p>
+</aside>
+<script type="module" src="sim.js"></script>
+</body>
+</html>
