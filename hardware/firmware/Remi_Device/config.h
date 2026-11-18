@@ -1,7 +1,7 @@
 #pragma once
 // Pick the board Remi runs on. DevKit is the full build: screen, rotary encoder and speaker.
 // The ESP32-CAM build keeps today's TFT wiring and has no free pins for the encoder or speaker,
-// so it is navigated from the Serial Monitor instead (a = left, d = right, s = press, b = hold, c = colour test).
+// so it is navigated from the Serial Monitor instead (a = left, d = right, s = press, b = hold, c = colour test, t = 10 s test tone).
 #define REMI_DEVKIT 1
 #define REMI_ESP32_CAM 2
 #ifndef REMI_BOARD

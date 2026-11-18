@@ -134,6 +134,11 @@ void spawn(Sfx s) {
       for (int i = 0; i < 4; ++i) add({uint16_t(i * 55), 260, f[i], f[i], SINE, .07f, 1});
       break;
     }
+    case Sfx::TestTone: {  // steady A4 for 10 s: keeps BCLK/LRC/DIN busy long enough to measure
+      const Note n[] = {{0, 10000, 440, 440, SINE, .5f, 20}};
+      addAll(n);
+      break;
+    }
     case Sfx::Hush:
       break;  // handled in render()
     case Sfx::Boot: {  // warm rising chime

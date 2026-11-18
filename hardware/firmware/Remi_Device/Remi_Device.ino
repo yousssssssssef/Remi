@@ -78,6 +78,7 @@ void pollInputs() {
     if (c == 's') ui::input(ui::Input::Press);
     if (c == 'b') ui::input(ui::Input::LongPress);
     if (c == 'c') ui::toggleColorTest();
+    if (c == 't') playSfx(Sfx::TestTone);  // 10 s tone for checking the speaker wiring
   }
 }
 
@@ -112,7 +113,7 @@ void setup() {
 #else
   Serial.begin(115200);
 #endif
-  Serial.println("Remi ready. Serial keys: a = left, d = right, s = press, b = hold, c = colour test");
+  Serial.println("Remi ready. Serial keys: a = left, d = right, s = press, b = hold, c = colour test, t = test tone");
   dataMutex = xSemaphoreCreateMutex();
   if (!displaySPI.begin(PIN_TFT_SCK, -1, PIN_TFT_MOSI, -1)) {  // no MISO: keeps GPIO12 free on the CAM
     Serial.println("ERROR: display SPI could not start");

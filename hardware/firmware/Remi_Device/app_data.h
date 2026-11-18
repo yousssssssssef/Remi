@@ -57,6 +57,7 @@ void backendRequest(Request r, int arg = 0);  // non-blocking; results land in `
 
 enum class Sfx : uint8_t {
   Boot, Whoosh, Land, Hello, Tick, Page, Select, Back, Check, Uncheck, Success, Error, TimerStart, Alarm, Voice, Edge,
-  Music, FlyIn, Boing, Pop0, Pop1, Pop2, Pop3, Scribble, Chime, Sparkle, Hush  // boot sequence
+  Music, FlyIn, Boing, Pop0, Pop1, Pop2, Pop3, Scribble, Chime, Sparkle, Hush,  // boot sequence
+  TestTone  // 10 s steady 440 Hz for checking the amp wiring with a meter
 };
 void playSfx(Sfx s);
