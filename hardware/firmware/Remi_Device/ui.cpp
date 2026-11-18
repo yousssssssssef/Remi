@@ -54,7 +54,7 @@ uint32_t speakUntil = 0;
 int talkLine = 0;
 uint32_t refreshAsked = 0;
 char toast[48] = "";
-uint32_t toastUntil = 0;
+uint32_t toastStart = 0, toastUntil = 0;
 uint32_t doneAt = 0;
 
 const char *const TALK_LINES[] = {"Hi! I'm Remi, your kitchen buddy.", "Soon you can just ask me what to cook.",
@@ -78,7 +78,8 @@ void setMode(Mode m) {
 
 void showToast(const char *msg) {
   snprintf(toast, sizeof toast, "%s", msg);
-  toastUntil = nowMs() + LONG_TOAST_MS;
+  toastStart = nowMs();
+  toastUntil = toastStart + LONG_TOAST_MS;
 }
 
 int checkedCount() {
@@ -494,8 +495,8 @@ void tickTimers(uint32_t now) {
 }
 
 void drawToast(uint32_t now) {
-  if (!toast[0] || int32_t(now - toastUntil) >= 0) return;
-  float in = easeOut((LONG_TOAST_MS - (toastUntil - now)) / 200.f), out = clamp01((toastUntil - now) / 250.f);
+  if (!toast[0] || int32_t(now - toastStart) < 0 || int32_t(now - toastUntil) >= 0) return;
+  float in = easeOut((now - toastStart) / 200.f), out = clamp01((toastUntil - now) / 250.f);
   uint8_t a = uint8_t(255 * fminf(in, out));
   int w = textWidth(FONT_SMALL, toast) + 20;
   fillRoundRect(64 - w / 2, 128 + int(6 * (1 - in)), w, 18, 9, INK, a);
@@ -523,6 +524,11 @@ void begin() {
 
 bool inIntro() { return intro; }
 void toggleColorTest() { colorTest = !colorTest; }
+void notify(const char *msg) {
+  showToast(msg);
+  toastStart = nowMs() + 6500;  // after the boot
+  toastUntil = toastStart + 8000;
+}
 
 void input(Input in) {
   uint32_t now = nowMs();

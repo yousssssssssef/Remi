@@ -83,25 +83,15 @@ void pollInputs() {
 }
 
 // ---------- audio ----------
-// I2S runs only while something is playing: the amp mutes without clocks, and on the CAM the LRC pin
-// (IO4) also drives the flash LED, which then stays dark between sounds.
+// I2S starts once and runs continuously (silence between sounds), in true stereo: on the original ESP32 the
+// driver's 16-bit mono mode silently becomes stereo, so mono samples would be mis-framed. Each sample goes
+// to both channels. On the CAM, IO4 (LRC) also drives the flash LED, which glows while I2S runs: tape over it.
 void audioTask(void *) {
-  static int16_t buf[256];
-  bool running = false;
-  uint32_t quietSince = 0;
+  static int16_t mono[256], stereo[512];
   for (;;) {
-    if (synth::busy()) {
-      if (!running) running = i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
-      synth::render(buf, 256);
-      if (running) i2s.write((const uint8_t *)buf, sizeof buf);  // blocks at the sample rate
-      quietSince = millis();
-    } else if (running && millis() - quietSince > 250) {
-      i2s.end();
-      running = false;
-      for (int8_t pin : {PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT}) { pinMode(pin, OUTPUT); digitalWrite(pin, LOW); }
-    } else {
-      vTaskDelay(pdMS_TO_TICKS(5));
-    }
+    synth::render(mono, 256);
+    for (int i = 0; i < 256; ++i) stereo[2 * i] = stereo[2 * i + 1] = mono[i];
+    i2s.write((const uint8_t *)stereo, sizeof stereo);  // blocks at the sample rate
   }
 }
 
@@ -134,13 +124,13 @@ void setup() {
   }
   if (PIN_I2S_DOUT >= 0) {
     i2s.setPins(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
-    audioOn = i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+    audioOn = i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
     if (audioOn) {
-      i2s.end();  // the audio task starts it again whenever there's something to play
       synth::setVolume(SPEAKER_VOLUME);
       xTaskCreatePinnedToCore(audioTask, "remi-audio", 4096, nullptr, 3, nullptr, 0);
     } else {
       Serial.println("WARNING: I2S speaker could not start; continuing silently");
+      ui::notify("Speaker didn't start");  // shown on screen: on the CAM, serial TX goes to the red LED
     }
   }
   backendBegin();
