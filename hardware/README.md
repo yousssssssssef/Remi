@@ -135,12 +135,12 @@ The CAM keeps its current TFT wiring: SCK IO14, MOSI IO13, CS IO15, DC IO2, VCC 
 |---|---|---|
 | BCLK | → | U0T (GPIO1). Serial logs move to the onboard red LED (GPIO33); keyboard input on U0R still works |
 | LRC | → | IO4. This pin also drives the flash LED, which flickers while sound plays, so tape over it. I2S stops between sounds, so the LED stays dark otherwise |
-| DIN | → | IO12. It must be low at boot, and the amp input doesn't pull it up |
+| DIN | → | IO0, the upload pin. It's free once the board has booted, so keep the IO0→GND jumper only for uploads. IO12 put out no signal on the bench board, so it isn't used |
 | Vin, GND | → | 5V, GND. Volume is limited to 0.4 because USB through the MB sags on loud peaks; a 470 µF capacitor across 5V and GND at the amp helps |
 | Speaker + / − | → | Amp + / − only |
 
 On the CAM:
-- **The knob and the microphone still need the DevKit.** IO16 is the PSRAM select line, so toggling it can crash the board. IO0 and IO12 are boot pins, which the encoder's pull-ups would upset.
+- **The knob and the microphone still need the DevKit.** IO16 is the PSRAM select line, so toggling it can crash the board. IO12 is a boot pin, which the encoder's pull-ups would upset, and IO0 now carries audio.
 - **Build:** add `#define REMI_BOARD REMI_ESP32_CAM` at the top of `config.h`.
 - **Navigate:** from the Serial Monitor at 115200, `a`/`d` = left/right, `s` = press, `b` = hold, `c` = colour test.
 - **Upload:** IO0→GND jumper, TFT A0 unplugged, then RESET. The amp can stay connected.

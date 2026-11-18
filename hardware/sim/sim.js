@@ -354,8 +354,8 @@ function makeESP32CAM() {
   right.forEach((n, i) => (pins[n] = rt[i]));
   return registerPart('cam', g, {
     name: 'ESP32-CAM (AI Thinker)', meta: '27 × 40.5 mm · today\'s bench board',
-    rows: [['Screen', 'SCK IO14 · MOSI IO13 · CS IO15 · DC IO2'], ['Speaker (amp)', 'BCLK U0T · LRC IO4 · DIN IO12 · 5V · GND'],
-      ['Trade-offs', 'Serial logs move to the red LED (GPIO33); the flash LED flickers with sound'], ['No knob', 'IO16 is the PSRAM select; IO12 and IO0 are boot pins'],
+    rows: [['Screen', 'SCK IO14 · MOSI IO13 · CS IO15 · DC IO2'], ['Speaker (amp)', 'BCLK U0T · LRC IO4 · DIN IO0 · 5V · GND'],
+      ['Trade-offs', 'Serial logs move to the red LED (GPIO33); the flash LED glows while audio runs'], ['No knob', 'IO16 is the PSRAM select; IO12 is a boot pin; IO0 carries audio'],
       ['Upload', 'IO0 → GND jumper, TFT DC unplugged, then RESET'], ['Navigate', 'Serial Monitor keys: a / d / s / b']],
   }, pins);
 }
@@ -434,7 +434,7 @@ async function buildViews() {
       [cam, '5V', tft, 'VCC', '5V', 'screen'], [cam, 'GND', tft, 'GND', 'GND', 'screen'], [cam, 'IO15', tft, 'CS', 'CS', 'screen'],
       [cam, '3V3', tft, 'RESET', '3V3', 'screen'], [cam, 'IO2', tft, 'A0', 'DC', 'screen'], [cam, 'IO13', tft, 'SDA', 'MOSI', 'screen'],
       [cam, 'IO14', tft, 'SCK', 'SCK', 'screen'], [cam, '3V3', tft, 'LED', '3V3', 'screen'],
-      [cam, 'U0T', amp, 'BCLK', 'BCLK', 'audio'], [cam, 'IO4', amp, 'LRC', 'LRC', 'audio'], [cam, 'IO12', amp, 'DIN', 'DIN', 'audio'],
+      [cam, 'U0T', amp, 'BCLK', 'BCLK', 'audio'], [cam, 'IO4', amp, 'LRC', 'LRC', 'audio'], [cam, 'IO0', amp, 'DIN', 'DIN', 'audio'],
       [cam, '5V', amp, 'Vin', '5V', 'audio'], [cam, 'GND2', amp, 'GND', 'GND', 'audio'],
     ];
     for (const [pa, a, pb, b, c, grp] of conn) {
@@ -458,8 +458,8 @@ async function buildViews() {
       steps: [
         { t: 'ESP32-CAM on the breadboard', d: 'Powered from the MB programmer: 5 V, GND and the U0T/U0R serial lines.', focus: 'cam', groups: ['power'] },
         { t: 'Screen wiring', d: 'SCK→IO14 · SDA→IO13 · CS→IO15 · A0→IO2 · VCC→5V · GND · RESET and LED→3V3.', focus: 'tft', groups: ['screen'] },
-        { t: 'Amp and speaker', d: 'BCLK→U0T · LRC→IO4 · DIN→IO12 · Vin→5V · GND. Speaker on the amp + and −. Tape over the flash LED: it flickers with sound.', focus: 'amp', groups: ['audio'] },
-        { t: 'Upload mode', d: 'Unplug USB, jumper IO0→GND (yellow), unplug TFT A0, reconnect, press RESET, upload. The amp can stay connected.', focus: 'cam', groups: ['upload'], show: [jumper] },
+        { t: 'Amp and speaker', d: 'BCLK→U0T · LRC→IO4 · DIN→IO0 · Vin→5V · GND. Speaker on the amp + and −. Tape over the flash LED: it flickers with sound.', focus: 'amp', groups: ['audio'] },
+        { t: 'Upload mode', d: 'Unplug USB, jumper IO0→GND (yellow; the amp's DIN wire can stay on IO0 too), unplug TFT A0, reconnect, press RESET, upload.', focus: 'cam', groups: ['upload'], show: [jumper] },
         { t: 'Run', d: 'Unplug, remove the jumper, plug A0 back in, press RESET. Serial Monitor keys: a / d / s / b, and c for the colour test.', focus: 'tft', groups: ['screen', 'power', 'audio'] },
       ],
     };

@@ -21,8 +21,9 @@ constexpr int8_t PIN_TFT_SCK = 14, PIN_TFT_MOSI = 13, PIN_TFT_CS = 15, PIN_TFT_D
 constexpr int8_t PIN_ENC_A = -1, PIN_ENC_B = -1, PIN_ENC_SW = -1;
 // Speaker on the CAM (MAX98357A): every other header pin is boot, PSRAM or upload, so audio takes
 // U0T (serial TX: logs go to the red LED, keyboard input on U0R still works), IO4 (also drives the flash
-// LED, which glows while audio runs: tape over it) and IO12 (must be low at boot; the amp doesn't pull it up).
-constexpr int8_t PIN_I2S_BCLK = 1, PIN_I2S_LRC = 4, PIN_I2S_DOUT = 12;
+// LED, which glows while audio runs: tape over it) and IO0 (the upload pin: free once booted; keep the
+// IO0->GND jumper only for uploads). IO12 measured 0 V under I2S on the bench board, so it isn't used.
+constexpr int8_t PIN_I2S_BCLK = 1, PIN_I2S_LRC = 4, PIN_I2S_DOUT = 0;
 constexpr float SPEAKER_VOLUME = 0.4f;       // USB power through the MB: keep peaks low to avoid brownouts
 #define REMI_SPI_HOST HSPI
 #else
