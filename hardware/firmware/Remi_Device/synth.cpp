@@ -23,7 +23,7 @@ struct Voice {
   Wave wave;
 };
 
-constexpr int VOICES = 12;
+constexpr int VOICES = 64;  // the boot jingle schedules ~50 notes up front; waiting voices cost almost nothing
 Voice voices[VOICES];
 volatile uint8_t qHead = 0, qTail = 0;
 Sfx queue[16];
@@ -72,8 +72,70 @@ void babble(int syllables, float base, uint16_t start) {
   }
 }
 
+// Marimba-ish pluck: fundamental plus a quiet 4th harmonic that dies fast.
+void pluck(uint16_t at, float f, float vol, uint16_t dur = 420) {
+  add({at, dur, f, f, SINE, vol, 2});
+  add({at, uint16_t(dur / 5), f * 4, f * 4, SINE, vol * 0.35f, 1});
+}
+void bass(uint16_t at, float f, float vol, uint16_t dur = 600) { add({at, dur, f, f, TRI, vol, 6}); }
+
+// Boot jingle in C major, timed to the boot animation (ms from power-on): arrival arpeggio while Remi
+// flies in, a chord when he lands, a melody while he waves, IV-V-I while the logo writes itself.
+void bootMusic() {
+  const float C3 = 130.81f, F3 = 174.61f, G3 = 196.f, A3 = 220.f;
+  const float C5 = 523.25f, E5 = 659.25f, G5 = 783.99f, A5 = 880.f, B5 = 987.77f;
+  const float C6 = 1046.5f, D6 = 1174.66f, E6 = 1318.51f, F6 = 1396.91f, G6 = 1567.98f;
+  const uint16_t arrive[] = {0, 190, 380, 570, 760};
+  const float up[] = {C5, E5, G5, B5, D6};
+  for (int i = 0; i < 5; ++i) pluck(arrive[i], up[i], 0.05f + 0.012f * i, 300);
+  pluck(1050, C5, 0.09f); pluck(1050, E5, 0.08f); pluck(1050, G5, 0.08f); bass(1050, C3, 0.16f);
+  pluck(1300, E6, 0.09f); pluck(1600, G6, 0.08f); bass(1650, A3, 0.13f); pluck(1900, E6, 0.09f); pluck(2200, C6, 0.09f);
+  bass(2150, F3, 0.14f); pluck(2320, A5, 0.08f); pluck(2560, C6, 0.08f); pluck(2800, F6, 0.08f);
+  bass(3000, G3, 0.14f); pluck(3200, B5, 0.08f); pluck(3420, D6, 0.08f);
+  pluck(3650, C5, 0.08f, 900); pluck(3650, E5, 0.07f, 900); pluck(3650, G5, 0.07f, 900); pluck(3650, C6, 0.08f, 1100);
+  bass(3650, C3, 0.17f, 1100);
+}
+
 void spawn(Sfx s) {
   switch (s) {
+    case Sfx::Music: bootMusic(); break;
+    case Sfx::FlyIn: {  // approaching from far away: rising air and a doppler-ish glide
+      const Note n[] = {{0, 980, 180, 2600, NOISE, .32f, 250}, {120, 900, 260, 820, SINE, .07f, 200}};
+      addAll(n);
+      break;
+    }
+    case Sfx::Boing: {  // landing squash
+      const Note n[] = {{0, 90, 95, 60, SINE, .35f, 1}, {10, 130, 230, 520, SINE, .22f, 2}, {130, 220, 520, 390, SINE, .16f, 2}};
+      addAll(n);
+      break;
+    }
+    case Sfx::Pop0: case Sfx::Pop1: case Sfx::Pop2: case Sfx::Pop3: {  // food popping out, rising C-E-G-C
+      static const float base[] = {523.25f, 659.25f, 783.99f, 1046.5f};
+      float f = base[int(s) - int(Sfx::Pop0)];
+      const Note n[] = {{0, 75, f, f * 1.7f, SINE, .2f, 1}, {0, 25, 3000, 2000, NOISE, .08f, 1}};
+      addAll(n);
+      break;
+    }
+    case Sfx::Scribble: {  // pen on paper while the logo writes
+      for (int i = 0; i < 14; ++i) {
+        uint16_t at = uint16_t(i * 105 + rnd() * 30), d = uint16_t(55 + rnd() * 45);
+        add({at, d, 2200 + rnd() * 1800, 1400 + rnd() * 1400, NOISE, .1f, 6});
+      }
+      break;
+    }
+    case Sfx::Chime: {  // logo done: bell with an inharmonic partial
+      const Note n[] = {{0, 1100, 1567.98f, 1567.98f, SINE, .16f, 2}, {0, 700, 4327.6f, 4327.6f, SINE, .04f, 2},
+                        {60, 1000, 2093.f, 2093.f, SINE, .09f, 2}};
+      addAll(n);
+      break;
+    }
+    case Sfx::Sparkle: {  // face docks: tiny shimmer
+      const float f[] = {2093.f, 2637.f, 3136.f, 4186.f};
+      for (int i = 0; i < 4; ++i) add({uint16_t(i * 55), 260, f[i], f[i], SINE, .07f, 1});
+      break;
+    }
+    case Sfx::Hush:
+      break;  // handled in render()
     case Sfx::Boot: {  // warm rising chime
       const Note n[] = {{0, 420, 1046.5f, 1046.5f, SINE, .22f}, {110, 420, 1318.5f, 1318.5f, SINE, .2f},
                         {220, 460, 1568, 1568, SINE, .2f}, {330, 700, 2093, 2093, SINE, .16f},
@@ -166,6 +228,13 @@ void spawn(Sfx s) {
 
 void setVolume(float v) { master = v; }
 
+bool busy() {
+  if (qHead != qTail) return true;
+  for (const Voice &v : voices)
+    if (v.on) return true;
+  return false;
+}
+
 void play(Sfx s) {
   uint8_t next = (qHead + 1) & 15;
   if (next == qTail) return;  // queue full: drop
@@ -175,8 +244,10 @@ void play(Sfx s) {
 
 void render(int16_t *out, int n) {
   while (qTail != qHead) {
-    spawn(queue[qTail]);
+    Sfx s = queue[qTail];
     qTail = (qTail + 1) & 15;
+    if (s == Sfx::Hush) { for (Voice &v : voices) v.on = false; continue; }
+    spawn(s);
   }
   for (int i = 0; i < n; ++i) {
     float mix = 0;

@@ -77,20 +77,42 @@ void pollInputs() {
     if (c == 'd') ui::input(ui::Input::Right);
     if (c == 's') ui::input(ui::Input::Press);
     if (c == 'b') ui::input(ui::Input::LongPress);
+    if (c == 'c') ui::toggleColorTest();
   }
 }
 
 // ---------- audio ----------
+// I2S runs only while something is playing: the amp mutes without clocks, and on the CAM the LRC pin
+// (IO4) also drives the flash LED, which then stays dark between sounds.
 void audioTask(void *) {
   static int16_t buf[256];
+  bool running = false;
+  uint32_t quietSince = 0;
   for (;;) {
-    synth::render(buf, 256);
-    i2s.write((const uint8_t *)buf, sizeof buf);  // blocks at the sample rate
+    if (synth::busy()) {
+      if (!running) running = i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+      synth::render(buf, 256);
+      if (running) i2s.write((const uint8_t *)buf, sizeof buf);  // blocks at the sample rate
+      quietSince = millis();
+    } else if (running && millis() - quietSince > 250) {
+      i2s.end();
+      running = false;
+      for (int8_t pin : {PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT}) { pinMode(pin, OUTPUT); digitalWrite(pin, LOW); }
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
   }
 }
 
 void setup() {
+#if REMI_BOARD == REMI_ESP32_CAM
+  // U0T (GPIO1) carries the speaker's BCLK, so serial TX moves to GPIO33, the CAM's onboard red LED
+  // (logs show up as blinks). RX stays on U0R, so the keyboard controls still work.
+  Serial.begin(115200, SERIAL_8N1, 3, 33);
+#else
   Serial.begin(115200);
+#endif
+  Serial.println("Remi ready. Serial keys: a = left, d = right, s = press, b = hold, c = colour test");
   dataMutex = xSemaphoreCreateMutex();
   if (!displaySPI.begin(PIN_TFT_SCK, -1, PIN_TFT_MOSI, -1)) {  // no MISO: keeps GPIO12 free on the CAM
     Serial.println("ERROR: display SPI could not start");
@@ -113,6 +135,7 @@ void setup() {
     i2s.setPins(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
     audioOn = i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
     if (audioOn) {
+      i2s.end();  // the audio task starts it again whenever there's something to play
       synth::setVolume(SPEAKER_VOLUME);
       xTaskCreatePinnedToCore(audioTask, "remi-audio", 4096, nullptr, 3, nullptr, 0);
     } else {
@@ -121,7 +144,6 @@ void setup() {
   }
   backendBegin();
   ui::begin();
-  Serial.println("Remi ready. Serial keys: a = left, d = right, s = press, b = hold");
 }
 
 void loop() {

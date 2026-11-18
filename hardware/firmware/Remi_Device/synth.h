@@ -10,5 +10,6 @@ constexpr int RATE = 22050;
 void play(Sfx s);
 void render(int16_t *out, int n);  // mixes all active sounds into out (overwrites)
 void setVolume(float v);           // 0..1, default 0.6
+bool busy();                       // anything playing or queued (lets the device stop I2S clocks when silent)
 
 }  // namespace synth

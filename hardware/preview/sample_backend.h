@@ -2,15 +2,15 @@
 // Sample kitchen data and a fake Remi API with realistic delays, shared by the Mac preview (preview.cpp)
 // and the browser simulator (sim/wasm_main.cpp). Include after defining nowMs() and `data`.
 #include <stdio.h>
-#include <vector>
 #include "app_data.h"
 
 struct Pending { Request r; int arg; uint32_t due; };
-inline std::vector<Pending> pending;
+inline Pending pending[8];  // plain array: the browser build links no C++ library
+inline int pendingCount = 0;
 void backendRequest(Request r, int arg) {
   if (r == Request::PutAway) data.putAway = Job::Working;
   if (r == Request::LoadRecipe) data.recipe = Job::Working;
-  pending.push_back({r, arg, nowMs() + (r == Request::PutAway ? 1100u : 700u)});
+  if (pendingCount < 8) pending[pendingCount++] = {r, arg, nowMs() + (r == Request::PutAway ? 1100u : 700u)};
 }
 
 inline void copy(char *dst, size_t n, const char *s) { snprintf(dst, n, "%s", s); }
@@ -41,10 +41,11 @@ inline void sampleData() {
 }
 
 inline void finishPending() {
-  for (size_t i = 0; i < pending.size();) {
+  for (int i = 0; i < pendingCount;) {
     Pending p = pending[i];
     if (nowMs() < p.due) { ++i; continue; }
-    pending.erase(pending.begin() + i);
+    for (int k = i + 1; k < pendingCount; ++k) pending[k - 1] = pending[k];
+    --pendingCount;
     if (p.r == Request::Refresh) data.syncedAtMs = nowMs();
     if (p.r == Request::PutAway) {
       int n = 0, k = 0;

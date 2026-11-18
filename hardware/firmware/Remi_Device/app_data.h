@@ -56,6 +56,7 @@ enum class Request : uint8_t { Refresh, PutAway, LoadRecipe };
 void backendRequest(Request r, int arg = 0);  // non-blocking; results land in `data`
 
 enum class Sfx : uint8_t {
-  Boot, Whoosh, Land, Hello, Tick, Page, Select, Back, Check, Uncheck, Success, Error, TimerStart, Alarm, Voice, Edge
+  Boot, Whoosh, Land, Hello, Tick, Page, Select, Back, Check, Uncheck, Success, Error, TimerStart, Alarm, Voice, Edge,
+  Music, FlyIn, Boing, Pop0, Pop1, Pop2, Pop3, Scribble, Chime, Sparkle, Hush  // boot sequence
 };
 void playSfx(Sfx s);

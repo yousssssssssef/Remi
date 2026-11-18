@@ -941,3 +941,4 @@ static const uint8_t AVATAR_BLINK_BITS[] = {
 static const Mask AVATAR_BLINK = {AVATAR_BLINK_BITS, 26, 22};
 
 static const int16_t AVATAR_X = 5, AVATAR_Y = 3;
+#define REMI_BG 0xF2C230  // device background colour (builder and firmware must match)

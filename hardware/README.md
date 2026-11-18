@@ -10,7 +10,20 @@ Remi on your counter: a 1.8" screen, one knob and a speaker, driven by an ESP32.
 
 ## What it does
 
-**Boot.** The welcome animation plays: Remi waves while the food and his name appear. Then he flies at you and the camera dives into his screen face. The face docks into the corner as a blinking avatar, and Home fades in around it.
+**Boot (about 6 s, with music).**
+
+| Time | What you see | What you hear |
+|---|---|---|
+| 0–1 s | Remi flies in from far away, banking as he comes | A rising whoosh, and a marimba arpeggio that arrives with him |
+| 1.05 s | He lands with a little squash | A soft boing on a C-major chord |
+| 1.25–2.45 s | He waves three times and blinks, and four foods pop out around him | "Hi!" in his voice, a melody, and a pop for each food |
+| 2.15–3.65 s | The logo writes itself (1.5 s, down from 3.6 s) | A pen scribble, then a chime on the final chord |
+| 3.6 s | "Cooking made fun" appears | — |
+| 4.05 s onward | He flies at you, the camera dives into his face, and the face docks as a blinking avatar while Home fades in | A whoosh, a bloop, and a sparkle |
+
+Press the knob to skip the boot; that also cuts the music.
+
+**Colour.** The whole boot is rendered from Remi's original vectors (`assets/vectors`), so lines stay sharp. The device background is **Remi gold `#F2C230`** rather than the app's lemon `#F8E45C`, which washes out to near-white on the TN-type TFT. To compare shades on your own screen, send `c` in the Serial Monitor: it shows six swatches.
 
 | Page | Shows | Press | Inside |
 |---|---|---|---|
@@ -91,7 +104,7 @@ Total peaks can exceed what a computer's USB port supplies, so use a 2 A supply.
 | `backend.cpp` | Wi-Fi, NTP clock and the Remi GraphQL API on its own FreeRTOS task |
 | `config.h` | Board and pins (`REMI_DEVKIT` or `REMI_ESP32_CAM`) |
 | `secrets.example.h` | Copy to `secrets.h` (never committed): Wi-Fi, API URL, Remi account, timezone |
-| Generated | `intro_frames.h`, `ui_assets.h` and `remi_animation.h` (welcome) |
+| Generated | `boot_frames.h` (the boot: 180 frames with shared palette and skip-RLE, plus sound cues) and `ui_assets.h` |
 
 **Build:**
 1. Choose ESP32 core 3.x, board **ESP32 Dev Module** (or AI Thinker ESP32-CAM), Partition Scheme **Huge APP (3MB No OTA)**.
@@ -116,10 +129,21 @@ node hardware/tools/check_queries.mjs backend
 
 ### Today's ESP32-CAM build
 
-The CAM keeps its current TFT wiring: SCK IO14, MOSI IO13, CS IO15, DC IO2, VCC 5 V, RESET and LED to 3.3 V. Its other header pins are boot-mode, PSRAM, flash-LED or upload pins, so the knob and speaker need the DevKit.
+The CAM keeps its current TFT wiring: SCK IO14, MOSI IO13, CS IO15, DC IO2, VCC 5 V, RESET and LED to 3.3 V. It can also drive the **amp and speaker**:
+
+| MAX98357A | → | ESP32-CAM |
+|---|---|---|
+| BCLK | → | U0T (GPIO1). Serial logs move to the onboard red LED (GPIO33); keyboard input on U0R still works |
+| LRC | → | IO4. This pin also drives the flash LED, which flickers while sound plays, so tape over it. I2S stops between sounds, so the LED stays dark otherwise |
+| DIN | → | IO12. It must be low at boot, and the amp input doesn't pull it up |
+| Vin, GND | → | 5V, GND. Volume is limited to 0.4 because USB through the MB sags on loud peaks; a 470 µF capacitor across 5V and GND at the amp helps |
+| Speaker + / − | → | Amp + / − only |
+
+On the CAM:
+- **The knob and the microphone still need the DevKit.** IO16 is the PSRAM select line, so toggling it can crash the board. IO0 and IO12 are boot pins, which the encoder's pull-ups would upset.
 - **Build:** add `#define REMI_BOARD REMI_ESP32_CAM` at the top of `config.h`.
-- **Navigate:** from the Serial Monitor at 115200, `a`/`d` = left/right, `s` = press, `b` = hold.
-- **Upload:** IO0→GND jumper, TFT A0 unplugged, then RESET.
+- **Navigate:** from the Serial Monitor at 115200, `a`/`d` = left/right, `s` = press, `b` = hold, `c` = colour test.
+- **Upload:** IO0→GND jumper, TFT A0 unplugged, then RESET. The amp can stay connected.
 
 ## Talk to Remi (planned)
 
@@ -148,7 +172,7 @@ Then open http://localhost:8765. The views have bookmarkable links: `#today`, `#
 
 Rebuild the generated pieces:
 ```bash
-python3 hardware/tools/build_assets.py   # intro frames, fonts, icons (needs Pillow, numpy, Google Chrome)
+python3 hardware/tools/build_assets.py   # boot frames, fonts, icons (needs Pillow, numpy, Google Chrome)
 ```
 ```bash
 WASI_SDK=/path/to/wasi-sdk hardware/sim/build_wasm.sh
@@ -160,7 +184,7 @@ PY=python3 hardware/preview/render.sh    # needs Pillow and imageio-ffmpeg
 ## Status
 
 - **Verified:**
-  - The firmware compiles for ESP32 Dev Module and ESP32-CAM: core 3.3.13, 57% of a 3 MB app partition.
+  - The firmware compiles for ESP32 Dev Module and ESP32-CAM: core 3.3.13, 59% of a 3 MB app partition.
   - The screen-only build runs on the ESP32-CAM, and its pages work from the Serial Monitor.
   - All GraphQL operations validate against `backend/schema.graphql`.
   - The WebAssembly build renders the same screens as the device code.

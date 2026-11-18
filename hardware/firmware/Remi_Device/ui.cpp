@@ -4,8 +4,7 @@
 #include <string.h>
 #include "app_data.h"
 #include "gfx.h"
-#include "intro_frames.h"
-#include "remi_animation.h"
+#include "boot_frames.h"
 
 using namespace gfx;
 
@@ -13,12 +12,9 @@ namespace ui {
 namespace {
 
 // ---------------- timing constants (ms) ----------------
-constexpr uint32_t WELCOME_MS = uint32_t(ANIM_FRAME_COUNT) * 1000 / ANIM_FPS;
-constexpr uint32_t HOLD_MS = 350;                       // beat on the finished welcome before take-off
-constexpr uint32_t INTRO_START = WELCOME_MS + HOLD_MS;
-constexpr uint32_t INTRO_MS = uint32_t(INTRO_FRAME_COUNT) * 1000 / INTRO_FPS;
+constexpr uint32_t BOOT_MS = uint32_t(BOOT_FRAME_COUNT) * 1000 / BOOT_FPS;  // about 6 s, sound cues included
 constexpr uint32_t UI_APPEAR_MS = 380;                  // Home content fades/rises in over the docked face
-constexpr uint32_t UI_APPEAR_AT = INTRO_START + INTRO_MS - 140;
+constexpr uint32_t UI_APPEAR_AT = BOOT_MS - 140;
 constexpr uint32_t PAGE_SLIDE_MS = 300, MODE_FADE_MS = 200, LONG_TOAST_MS = 2600;
 
 enum Page { HOME, BOUGHT, COOK, TALK, PAGE_COUNT };
@@ -33,8 +29,9 @@ struct Tween {
 
 uint32_t bootMs = 0;
 bool intro = true;
-uint16_t welcomeFrame = 0;  // delta frames are applied in order
-int introSfxStage = 0;
+uint16_t bootFrame = 0;  // next frame to decode: frames only patch what changed, so they're applied in order
+size_t bootCue = 0;
+bool colorTest = false;
 
 int page = HOME;
 Tween pagePos;
@@ -91,29 +88,30 @@ int checkedCount() {
 }
 
 // ---------------- intro ----------------
-void applyWelcomeDelta(uint16_t frame) {
-  uint32_t offset = FRAME_OFFSETS[frame], end = FRAME_OFFSETS[frame + 1];
-  if (frame == 0) memset(fb, 0, sizeof fb);
-  uint32_t cursor = 0;
-  while (offset + 4 <= end) {
-    uint16_t skip = FRAME_DATA[offset] | uint16_t(FRAME_DATA[offset + 1]) << 8;
-    uint16_t count = FRAME_DATA[offset + 2] | uint16_t(FRAME_DATA[offset + 3]) << 8;
-    offset += 4;
-    cursor += skip;
-    if (cursor + count > uint32_t(W * H)) return;  // corrupt data: stop rather than overrun
-    memcpy(fb + cursor, FRAME_DATA + offset, size_t(count) * 2);
-    cursor += count;
-    offset += uint32_t(count) * 2;
+void decodeBootFrame(uint16_t frame) {
+  uint32_t o = BOOT_OFFSETS[frame], end = BOOT_OFFSETS[frame + 1], px = 0;
+  while (o + 1 < end && px < uint32_t(W * H)) {
+    uint8_t run = BOOT_DATA[o], idx = BOOT_DATA[o + 1];
+    if (px + run > uint32_t(W * H)) return;  // corrupt data: stop rather than overrun
+    if (idx != BOOT_SKIP) {
+      uint16_t c = BOOT_PALETTE[idx];
+      for (uint8_t i = 0; i < run; ++i) fb[px + i] = c;
+    }
+    px += run;
+    o += 2;
   }
 }
 
-void drawIntroFrame(uint16_t frame) {
-  uint32_t o = INTRO_OFFSETS[frame], end = INTRO_OFFSETS[frame + 1], px = 0;
-  while (o + 1 < end && px < uint32_t(W * H)) {
-    uint8_t run = INTRO_DATA[o], idx = INTRO_DATA[o + 1] & 63;
-    uint16_t c = INTRO_PALETTE[idx];
-    for (uint8_t i = 0; i < run && px < uint32_t(W * H); ++i) fb[px++] = c;
-    o += 2;
+// Swatches for choosing the background on a real panel (Serial key 'c'). TN panels wash out light yellows.
+void drawColorTest() {
+  static const uint32_t SW[] = {0xF8E45C, 0xF5D33F, 0xF2C230, 0xEDB61E, 0xE8A916, 0xFFD23F};
+  static const char *const NAMES[] = {"F8E45C app", "F5D33F", "F2C230 now", "EDB61E", "E8A916", "FFD23F"};
+  for (int i = 0; i < 6; ++i) {
+    int y = i * 26 + 3;
+    fillRect(0, y - 3, W, 26, rgb(SW[i]));
+    fillRoundRect(6, y + 2, 20, 16, 5, WHITE);
+    text(FONT_LABEL, 34, y + 14, NAMES[i], COBALT);
+    drawMask(AVATAR_OPEN, 98, y - 1, COBALT);
   }
 }
 
@@ -516,19 +514,23 @@ void goPage(int p, uint32_t now) {
 void begin() {
   bootMs = nowMs();
   intro = true;
-  welcomeFrame = 0;
-  introSfxStage = 0;
+  bootFrame = 0;
+  bootCue = 0;
   page = HOME;
   pagePos = Tween();
   mode = Mode::Top;
 }
 
 bool inIntro() { return intro; }
+void toggleColorTest() { colorTest = !colorTest; }
 
 void input(Input in) {
   uint32_t now = nowMs();
   if (intro) {  // any input skips the intro
-    if (in == Input::Press || in == Input::LongPress) bootMs = now - (UI_APPEAR_AT + UI_APPEAR_MS);
+    if (in == Input::Press || in == Input::LongPress) {
+      bootMs = now - (UI_APPEAR_AT + UI_APPEAR_MS);
+      playSfx(Sfx::Hush);  // cut the boot music short with the animation
+    }
     return;
   }
   if (alarm && (in == Input::Press || in == Input::LongPress)) { alarm = false; playSfx(Sfx::Back); return; }
@@ -639,28 +641,18 @@ void render() {
   uint32_t now = nowMs();
   uint32_t t = now - bootMs;
   if (intro) {
-    if (t < WELCOME_MS + HOLD_MS) {
-      if (introSfxStage == 0) { playSfx(Sfx::Boot); introSfxStage = 1; }
-      uint16_t target = uint16_t(t * ANIM_FPS / 1000);
-      if (target >= ANIM_FRAME_COUNT) target = ANIM_FRAME_COUNT - 1;
-      while (welcomeFrame <= target) applyWelcomeDelta(welcomeFrame++);
-      lastFrameMs = now;
-      return;
-    }
-    uint32_t it = t - INTRO_START;
-    uint16_t f = uint16_t(int32_t(t - INTRO_START) < 0 ? 0 : it * INTRO_FPS / 1000);
-    if (f >= INTRO_FRAME_COUNT) f = INTRO_FRAME_COUNT - 1;
-    if (introSfxStage == 1 && f >= INTRO_ZOOM_FRAME) { playSfx(Sfx::Whoosh); introSfxStage = 2; }
-    if (introSfxStage == 2 && f >= INTRO_DOCK_FRAME - 4) { playSfx(Sfx::Land); introSfxStage = 3; }
-    if (introSfxStage == 3 && f >= INTRO_DOCK_FRAME + 8) { playSfx(Sfx::Hello); introSfxStage = 4; }
+    uint32_t f = t * BOOT_FPS / 1000;
+    if (f >= BOOT_FRAME_COUNT) f = BOOT_FRAME_COUNT - 1;
+    while (bootCue < sizeof BOOT_CUES / sizeof BOOT_CUES[0] && BOOT_CUES[bootCue].frame <= f && t < UI_APPEAR_AT)
+      playSfx(BOOT_CUES[bootCue++].sound);
     if (t < UI_APPEAR_AT) {
-      drawIntroFrame(f);
+      while (bootFrame <= f) decodeBootFrame(bootFrame++);
       lastFrameMs = now;
       return;
     }
     // Hand-off: the last intro frame is the Home background with the docked face; fade the UI in over it.
     float p = easeOut(float(t - UI_APPEAR_AT) / UI_APPEAR_MS);
-    fill(LEMON);
+    fill(BG);
     drawHeader(now, uint8_t(255 * p));
     drawPages(now, uint8_t(255 * p), int(6 * (1 - p)));
     drawFooter(uint8_t(255 * p));
@@ -669,8 +661,9 @@ void render() {
     return;
   }
   tickTimers(now);
+  if (colorTest) { drawColorTest(); lastFrameMs = now; return; }
   lockData();
-  fill(LEMON);
+  fill(BG);
   drawPages(now, 255, 0);
   drawHeader(now, 255);
   drawFooter(255);

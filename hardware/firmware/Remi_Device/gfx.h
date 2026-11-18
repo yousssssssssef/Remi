@@ -16,6 +16,7 @@ constexpr uint16_t rgb(uint32_t hex) {
 constexpr uint16_t LEMON = rgb(0xF8E45C), COBALT = rgb(0x1734BE), PINK = rgb(0xED2B8C), PINK_TEXT = rgb(0xC2146C),
                    INK = rgb(0x0E1440), WHITE = rgb(0xFFFFFF), PALE_LEMON = rgb(0xFCF4C4), PALE_PINK = rgb(0xFDE7F1),
                    PAPER = rgb(0xFFFDF4);
+constexpr uint16_t BG = rgb(REMI_BG);  // device background (a deeper gold reads better on the TFT than LEMON)
 
 uint16_t blend(uint16_t dst, uint16_t src, uint8_t alpha);  // alpha 0..255
 

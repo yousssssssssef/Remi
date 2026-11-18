@@ -354,7 +354,8 @@ function makeESP32CAM() {
   right.forEach((n, i) => (pins[n] = rt[i]));
   return registerPart('cam', g, {
     name: 'ESP32-CAM (AI Thinker)', meta: '27 × 40.5 mm · today\'s bench board',
-    rows: [['Screen', 'SCK IO14 · MOSI IO13 · CS IO15 · DC IO2'], ['Why no knob/sound', 'Its other header pins are boot, PSRAM, flash LED or upload pins'],
+    rows: [['Screen', 'SCK IO14 · MOSI IO13 · CS IO15 · DC IO2'], ['Speaker (amp)', 'BCLK U0T · LRC IO4 · DIN IO12 · 5V · GND'],
+      ['Trade-offs', 'Serial logs move to the red LED (GPIO33); the flash LED flickers with sound'], ['No knob', 'IO16 is the PSRAM select; IO12 and IO0 are boot pins'],
       ['Upload', 'IO0 → GND jumper, TFT DC unplugged, then RESET'], ['Navigate', 'Serial Monitor keys: a / d / s / b']],
   }, pins);
 }
@@ -425,12 +426,16 @@ async function buildViews() {
     const cam = makeESP32CAM(); cam.group.position.set(0, 9.5 + 8.5, 0); root.add(cam.group);
     const mb = makeMB(); mb.group.position.set(-62, 0, 6); root.add(mb.group);
     const tft = makeTFT(); tft.group.position.set(0, 28.2 + 6, -70); root.add(tft.group);
+    const amp = await makeAmp(); amp.group.position.set(68, 0, 30); amp.group.rotation.y = -Math.PI / 2; root.add(amp.group);
+    const spk = await makeSpeaker(); spk.group.position.set(92, 0, -28); root.add(spk.group);
     root.updateWorldMatrix(true, true);
     const wires = new THREE.Group();
     const conn = [
       [cam, '5V', tft, 'VCC', '5V', 'screen'], [cam, 'GND', tft, 'GND', 'GND', 'screen'], [cam, 'IO15', tft, 'CS', 'CS', 'screen'],
       [cam, '3V3', tft, 'RESET', '3V3', 'screen'], [cam, 'IO2', tft, 'A0', 'DC', 'screen'], [cam, 'IO13', tft, 'SDA', 'MOSI', 'screen'],
       [cam, 'IO14', tft, 'SCK', 'SCK', 'screen'], [cam, '3V3', tft, 'LED', '3V3', 'screen'],
+      [cam, 'U0T', amp, 'BCLK', 'BCLK', 'audio'], [cam, 'IO4', amp, 'LRC', 'LRC', 'audio'], [cam, 'IO12', amp, 'DIN', 'DIN', 'audio'],
+      [cam, '5V', amp, 'Vin', '5V', 'audio'], [cam, 'GND2', amp, 'GND', 'GND', 'audio'],
     ];
     for (const [pa, a, pb, b, c, grp] of conn) {
       const from = worldPin(pa, a); from.y = 9.6;  // jumper enters the breadboard row next to the pin
@@ -442,17 +447,20 @@ async function buildViews() {
       wires.add(wire(from, new THREE.Vector3(-62 + (i - 1.5) * 4, 10, -6), WIRE_COLORS[c], { group: 'power' }));
     });
     // upload jumper IO0 -> GND (shown during the upload step only)
+    wires.add(wire(worldPin(amp, 'SPK+'), worldPin(spk, '+'), WIRE_COLORS.SPK, { group: 'audio', lift: 10 }));
+    wires.add(wire(worldPin(amp, 'SPK-'), worldPin(spk, '-'), '#222', { group: 'audio', lift: 10 }));
     const jumper = wire(Object.assign(worldPin(cam, 'IO0'), { y: 9.6 }), Object.assign(worldPin(cam, 'GND2'), { y: 9.6 }), '#ffb300', { group: 'upload', lift: 6 });
     jumper.visible = false;
     wires.add(jumper);
     root.add(wires);
     views.today = {
-      root, wires, prefix: 'today:', cam: { pos: [120, 150, 190], target: [-12, 18, -20] }, labels: ['cam', 'mb', 'tft'],
+      root, wires, prefix: 'today:', cam: { pos: [150, 175, 225], target: [8, 15, -15] }, labels: ['cam', 'mb', 'tft', 'amp', 'speaker'],
       steps: [
         { t: 'ESP32-CAM on the breadboard', d: 'Powered from the MB programmer: 5 V, GND and the U0T/U0R serial lines.', focus: 'cam', groups: ['power'] },
         { t: 'Screen wiring', d: 'SCK→IO14 · SDA→IO13 · CS→IO15 · A0→IO2 · VCC→5V · GND · RESET and LED→3V3.', focus: 'tft', groups: ['screen'] },
-        { t: 'Upload mode', d: 'Unplug USB, jumper IO0→GND (yellow), unplug TFT A0, reconnect, press RESET, upload.', focus: 'cam', groups: ['upload'], show: [jumper] },
-        { t: 'Run', d: 'Unplug, remove the jumper, plug A0 back in, press RESET. Pages via Serial Monitor: a / d / s / b.', focus: 'tft', groups: ['screen', 'power'] },
+        { t: 'Amp and speaker', d: 'BCLK→U0T · LRC→IO4 · DIN→IO12 · Vin→5V · GND. Speaker on the amp + and −. Tape over the flash LED: it flickers with sound.', focus: 'amp', groups: ['audio'] },
+        { t: 'Upload mode', d: 'Unplug USB, jumper IO0→GND (yellow), unplug TFT A0, reconnect, press RESET, upload. The amp can stay connected.', focus: 'cam', groups: ['upload'], show: [jumper] },
+        { t: 'Run', d: 'Unplug, remove the jumper, plug A0 back in, press RESET. Serial Monitor keys: a / d / s / b, and c for the colour test.', focus: 'tft', groups: ['screen', 'power', 'audio'] },
       ],
     };
   }
