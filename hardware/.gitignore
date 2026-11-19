@@ -1,1 +1,4 @@
 firmware/Remi_Device/secrets.h
+sim/build.json
+sim/build.json.tmp
+sim/remi.next.wasm

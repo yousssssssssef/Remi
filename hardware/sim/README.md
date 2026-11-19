@@ -1,5 +1,7 @@
 # Remi 3D build simulator
 
+> For designing the screens, use the **live preview** instead: `python3 hardware/sim/dev_server.py`, then open http://localhost:8770/preview.html. It rebuilds on every firmware save and hot-reloads (see the hardware README).
+
 This is a 3D build guide for the Remi kitchen device. The screen in the 3D view runs Remi's real firmware UI and sounds, compiled to WebAssembly, and you can turn the 3D knob to use it.
 
 GitHub stores these files but can't run them in place. Run the simulator on your computer as shown below, or publish it with GitHub Pages.

@@ -68,6 +68,33 @@ The ESP32-CAM has a camera, but in the Remi app the reading itself happens on th
    - **A vision model:** best accuracy, needs a provider key.
 3. **Review on the device:** confirmed foods go in with `receiveReceipt` / `addStock`, the same flow as Just bought.
 
+## Live preview while designing (like the iOS Simulator)
+
+Change the UI on the Mac, see it instantly, and only flash the device once a design is approved:
+
+```bash
+python3 hardware/sim/dev_server.py
+```
+
+Then open **http://localhost:8770/preview.html** (or start `remi-live-preview` in Claude's browser pane).
+
+What the preview does:
+- **Real firmware:** it runs the actual device code (`ui.cpp`, `gfx.cpp`, `synth.cpp`) compiled to WebAssembly, pixel-exact at 2×, 3× or 4×, with Remi's sounds.
+- **Rebuilds on save:** every time a firmware file is saved, the server rebuilds in about 1.5 s and the page swaps in the new build without a refresh.
+- **Keeps your place:** your knob inputs are replayed after each reload, so you stay on the screen you were looking at.
+- **Shows errors:** if a build fails, the compiler error appears on the page and the last good build keeps running.
+- **Regenerates assets:** changing `tools/build_assets.py` or `assets/` regenerates the boot animation, fonts and icons first. This needs Pillow, numpy and Chrome; set `PY` to a Python that has Pillow.
+- **Same controls as the device:** the touch knob, the arrow keys, Space and Esc, plus the phone-remote boxes (Add to list and Ask Remi). There's also a screenshot button and a skip-boot toggle.
+- **Sample data:** kitchen data comes from `preview/sample_backend.h`. Edit it to try other states, such as an empty kitchen or a long list.
+
+When a design is approved, flash it (ESP32-CAM shown; use `esp32:esp32:esp32:PartitionScheme=huge_app` for the DevKit):
+
+```bash
+arduino-cli compile --upload -p /dev/cu.usbserial-XXXX --fqbn esp32:esp32:esp32cam --build-property "compiler.cpp.extra_flags=-DREMI_BOARD=2" hardware/firmware/Remi_Device
+```
+
+Toolchain: [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases), looked for in `~/.local/share/wasi-sdk-34` (override with `WASI_SDK`).
+
 ## Parts list
 
 | # | Part | Key specs | Notes |

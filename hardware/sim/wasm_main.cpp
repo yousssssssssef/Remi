@@ -55,4 +55,12 @@ EXPORT("remi_audio") int16_t *remi_audio(int n) {
 }
 
 EXPORT("remi_sound") void remi_sound(int on) { soundOn = on; }
+
+// Typed text from the page (the phone remote's boxes): write UTF-8 into remi_text_buf(), then call remi_text.
+static char textBuf[64];
+EXPORT("remi_text_buf") char *remi_text_buf() { return textBuf; }
+EXPORT("remi_text") void remi_text(int ask) {  // 0 = add to shopping list, 1 = ask Remi
+  textBuf[sizeof textBuf - 1] = 0;
+  ui::textInput(ask ? ui::TextKind::Ask : ui::TextKind::Add, textBuf);
+}
 EXPORT("remi_in_intro") int remi_in_intro() { return ui::inIntro(); }
