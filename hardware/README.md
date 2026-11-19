@@ -25,14 +25,48 @@ Press the knob to skip the boot; that also cuts the music.
 
 **Colour.** The whole boot is rendered from Remi's original vectors (`assets/vectors`), so lines stay sharp. The device background is **Remi gold `#F2C230`** rather than the app's lemon `#F8E45C`, which washes out to near-white on the TN-type TFT. To compare shades on your own screen, send `c` in the Serial Monitor: it shows six swatches.
 
+Seven pages, left to right:
+
 | Page | Shows | Press | Inside |
 |---|---|---|---|
-| **Home** | Greeting, time, date, foods in the kitchen, how many to use first (expiring within 3 days) | Sync now | — |
-| **Just bought** | Items on the active shopping list | Open the list | Tick what you bought, then **Put away**: `addStock` plus marking the item bought |
-| **Cook** | Best recipe for what you have, and its ingredient coverage | Recipe ideas | Pick one, **Start cooking**, turn through the steps, press for the step's timer |
-| **Talk** | Microphone page | Remi says hi | Push-to-talk voice assistant (planned, see below) |
+| **Home** | Greeting, time, date, foods in the kitchen, how many to use first | Sync now | — |
+| **Today** | Calories and protein so far against your goal, plus today's planned meals | Cook a planned meal | Opens that recipe straight into cook mode |
+| **Kitchen** | Your foods, soonest expiry first, with days left | See everything | Pick a food, then **Used it up** (`consumeStock`) or **Threw it out** (`discardStock`) |
+| **Just bought** | Items on the active shopping list | Open the list | Tick what you bought, then **Put away** (`addStock` and marked bought). Typing "milk" on the phone remote searches the catalogue; you pick the match with the knob and it's added to the list |
+| **Cook** | Best recipe for what you have | Recipe ideas | Steps with timers. At the end, **I cooked it** logs the meal, which deducts the ingredients from the kitchen (`logMeal`) |
+| **Ask Remi** | — | Questions | What can I cook? What should I use first? What's on my list? What's planned today? How am I doing today? Answers come from your kitchen data, in Remi's voice. Typed questions from the phone are matched to these |
+| **Connect** | QR code for the phone remote (or for joining the setup Wi-Fi) | — | — |
 
 The knob: **turn** = next or previous, **press** = select, **hold** = back. Every action has a sound, and Remi talks in a synthesized robot voice. The look follows the app's "Sip Happy" design (lemon, cobalt, pink and DM Sans; see [`DESIGN.md`](../DESIGN.md)).
+
+### Control it from your phone or Mac (no encoder needed)
+
+The device serves its own remote:
+1. Open the **Connect** page and scan the QR code, or browse to `http://<device-ip>` (`http://remi.local` also works on Macs and iPhones).
+2. You get a **touch knob**: drag it around to turn (20 clicks per turn, like the KY-040), tap to press, hold half a second to go back. On a Mac, use the arrow keys, Space and Esc.
+3. The same page has text boxes for **"Add to shopping list"** and **"Ask Remi"**.
+
+These are the same four events the rotary encoder sends, so everything you test now behaves the same once the knob is wired. The Serial Monitor keys still work too: `a`/`d`/`s`/`b`, `c` for the colour test, `t` for the test tone.
+
+**First-time setup from the phone:**
+1. With no Wi-Fi saved, Remi starts its own network, **Remi-Setup** (password `cookwithremi`). The Connect page shows a QR code that joins it.
+2. Open `http://192.168.4.1/setup` and enter your Wi-Fi, the Remi API address (`http://<mac-ip>:3000/graphql`), your Remi email and password, and your time zone.
+3. Remi restarts and joins your Wi-Fi. It signs in once, then **deletes the password** and keeps only a rotating refresh token.
+
+`secrets.h` is now optional: it only supplies first-boot defaults.
+
+### SD card?
+
+**Not needed.** Everything lives in flash (boot animation, fonts, settings) or comes from the API. On the ESP32-CAM, the SD slot shares pins with the screen (IO2, IO13, IO14, IO15), so a card can't be used there anyway.
+
+### Receipt scanner (next step, needs a server-side reader)
+
+The ESP32-CAM has a camera, but in the Remi app the reading itself happens on the phone (Apple Vision or ML Kit). The server only matches names (`matchReceiptItems`), and the ESP32 can't do text recognition. A device scanner needs:
+1. **A capture page on the device:** camera preview on the TFT, then press to shoot a JPEG. This needs the camera's IO0 clock pin, so it can't run at the same time as the CAM speaker build.
+2. **A server endpoint:** it takes the photo, runs OCR, then reuses the receipt parser and `matchReceiptItems`. Two options:
+   - **Tesseract:** open source, no API key, weaker on photos.
+   - **A vision model:** best accuracy, needs a provider key.
+3. **Review on the device:** confirmed foods go in with `receiveReceipt` / `addStock`, the same flow as Just bought.
 
 ## Parts list
 
@@ -102,13 +136,15 @@ Total peaks can exceed what a computer's USB port supplies, so use a 2 A supply.
 | `gfx.cpp` | 128×160 RGB565 framebuffer, anti-aliased DM Sans text, shapes, masks |
 | `synth.cpp` | 22 kHz procedural synth: UI sounds and Remi's voice |
 | `backend.cpp` | Wi-Fi, NTP clock and the Remi GraphQL API on its own FreeRTOS task |
+| `remote.cpp` | Phone/Mac remote (touch knob, add-to-list and ask boxes) and the Wi-Fi/account setup page, served on port 80 |
+| `qrcode.c` | QR code generator for the Connect page (Richard Moore, MIT, vendored) |
 | `config.h` | Board and pins (`REMI_DEVKIT` or `REMI_ESP32_CAM`) |
-| `secrets.example.h` | Copy to `secrets.h` (never committed): Wi-Fi, API URL, Remi account, timezone |
+| `secrets.example.h` | Optional: copy to `secrets.h` (never committed) for first-boot defaults; otherwise use the setup page |
 | Generated | `boot_frames.h` (the boot: 180 frames with shared palette and skip-RLE, plus sound cues) and `ui_assets.h` |
 
 **Build:**
 1. Choose ESP32 core 3.x, board **ESP32 Dev Module** (or AI Thinker ESP32-CAM), Partition Scheme **Huge APP (3MB No OTA)**.
-2. Install the libraries: Adafruit ST7735 and ST7789, Adafruit GFX and ArduinoJson 7.
+2. Install the libraries: Adafruit ST7735 and ST7789, Adafruit GFX and ArduinoJson 7 (the QR code generator is included).
 3. Compile and upload:
    ```bash
    arduino-cli compile --upload -p <port> --fqbn esp32:esp32:esp32:PartitionScheme=huge_app hardware/firmware/Remi_Device

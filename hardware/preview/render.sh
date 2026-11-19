@@ -6,7 +6,8 @@ set -euo pipefail
 cd "${0:A:h}/.."
 PY=${PY:-python3}
 OUT=$(mktemp -d)
-c++ -std=c++17 -O2 -Ifirmware/Remi_Device preview/preview.cpp firmware/Remi_Device/{gfx,ui,synth}.cpp -o "$OUT/preview"
+cc -O2 -c firmware/Remi_Device/qrcode.c -o "$OUT/qrcode.o"
+c++ -std=c++17 -O2 -Ifirmware/Remi_Device preview/preview.cpp firmware/Remi_Device/{gfx,ui,synth}.cpp "$OUT/qrcode.o" -o "$OUT/preview"
 "$OUT/preview" "$OUT"
 FF=$("$PY" -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')
 "$FF" -loglevel error -y -f rawvideo -pix_fmt rgb24 -s 128x160 -r 30 -i "$OUT/frames.rgb" -i "$OUT/audio.wav" \

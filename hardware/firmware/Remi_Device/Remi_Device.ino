@@ -10,6 +10,7 @@
 #include "backend.h"
 #include "config.h"
 #include "gfx.h"
+#include "remote.h"
 #include "synth.h"
 #include "ui.h"
 
@@ -70,6 +71,14 @@ void pollInputs() {
       else if (!longSent) ui::input(ui::Input::Press);
     }
     if (stable == LOW && !longSent && now - pressedAt >= LONG_PRESS_MS) { longSent = true; ui::input(ui::Input::LongPress); }
+  }
+  RemoteEvent e;  // phone/Mac remote: the same four knob events, plus typed text
+  while (remoteNext(e)) {
+    if (e.kind == 'l') ui::input(ui::Input::Left);
+    else if (e.kind == 'r') ui::input(ui::Input::Right);
+    else if (e.kind == 'p') ui::input(ui::Input::Press);
+    else if (e.kind == 'h') ui::input(ui::Input::LongPress);
+    else ui::textInput(e.kind == 'a' ? ui::TextKind::Add : ui::TextKind::Ask, e.text);
   }
   while (Serial.available()) {  // keyboard stand-in for the knob (Serial Monitor, 115200)
     char c = Serial.read();
@@ -134,6 +143,7 @@ void setup() {
     }
   }
   backendBegin();
+  remoteBegin();
   ui::begin();
 }
 

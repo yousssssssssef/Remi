@@ -1,6 +1,9 @@
 // Wi-Fi, clock and Remi API sync. Runs as its own FreeRTOS task on core 0 so the UI never waits on the network.
+// Without saved Wi-Fi it starts the "Remi-Setup" network so a phone can configure it (see remote.cpp).
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <algorithm>
+#include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -10,20 +13,50 @@
 #include "queries.h"
 #if __has_include("secrets.h")
 #include "secrets.h"
-#else
-#warning "secrets.h not found: using secrets.example.h (copy it to secrets.h and fill it in)"
-#include "secrets.example.h"
 #endif
+#ifndef WIFI_SSID  // no secrets.h: everything comes from the setup page
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+#define REMI_API_URL ""
+#define REMI_EMAIL ""
+#define REMI_PASSWORD ""
+#define REMI_TZ "EET-2EEST,M4.5.5/0,M10.5.4/24"
+#endif
+
+static const char SETUP_SSID[] = "Remi-Setup", SETUP_PASS[] = "cookwithremi";
+
+DeviceConfig loadConfig() {
+  Preferences p;
+  p.begin("remi", true);
+  DeviceConfig c{p.getString("ssid", WIFI_SSID), p.getString("wpass", WIFI_PASSWORD), p.getString("api", REMI_API_URL),
+                 p.getString("email", REMI_EMAIL), p.getString("pass", REMI_PASSWORD), p.getString("tz", REMI_TZ)};
+  p.end();
+  return c;
+}
+
+void saveConfig(const DeviceConfig &c) {
+  Preferences p;
+  p.begin("remi", false);
+  p.putString("ssid", c.ssid);
+  if (c.wifiPass.length()) p.putString("wpass", c.wifiPass);
+  p.putString("api", c.apiUrl);
+  if (c.email != p.getString("email", "")) p.remove("refresh");  // a different account starts a new session
+  p.putString("email", c.email);
+  if (c.password.length()) { p.putString("pass", c.password); p.remove("refresh"); }
+  p.putString("tz", c.tz);
+  p.end();
+}
 
 namespace {
 
 enum class Result { Ok, Auth, Net, Failed };
-
 struct Cmd { Request r; int arg; };
 QueueHandle_t commands;
 Preferences prefs;
+DeviceConfig cfg;
 String accessToken, refreshToken, householdId;
 uint32_t accessValidUntil = 0;
+bool setupMode = false;
 
 void setLink(Link l) { lockData(); data.link = l; unlockData(); }
 
@@ -59,8 +92,26 @@ void amount(char *dst, size_t n, const char *decimal) {
   if (end == dot) *end = 0;
 }
 
+bool clockSet() { return time(nullptr) > 1700000000; }
+
+void today(char *buf, size_t n) {  // local date, YYYY-MM-DD
+  time_t now = time(nullptr);
+  strftime(buf, n, "%Y-%m-%d", localtime(&now));
+}
+
+// Whole days from today (local) to an ISO date or date-time; NO_EXPIRY if missing.
+int daysUntil(const char *iso) {
+  if (!iso || strlen(iso) < 10 || !clockSet()) return NO_EXPIRY;
+  struct tm d = {};
+  d.tm_year = atoi(iso) - 1900; d.tm_mon = atoi(iso + 5) - 1; d.tm_mday = atoi(iso + 8); d.tm_hour = 12;
+  time_t now = time(nullptr);
+  struct tm t = *localtime(&now);
+  t.tm_hour = 12; t.tm_min = t.tm_sec = 0;
+  return int(lround(difftime(mktime(&d), mktime(&t)) / 86400.0));
+}
+
 Result post(const char *query, JsonDocument &vars, JsonDocument &out, bool auth) {
-  if (WiFi.status() != WL_CONNECTED) return Result::Net;
+  if (WiFi.status() != WL_CONNECTED || !cfg.apiUrl.length()) return Result::Net;
   JsonDocument body;
   body["query"] = query;
   body["variables"] = vars;
@@ -68,9 +119,9 @@ Result post(const char *query, JsonDocument &vars, JsonDocument &out, bool auth)
   serializeJson(body, payload);
   HTTPClient http;
   http.setTimeout(10000);
-  if (!http.begin(REMI_API_URL)) return Result::Net;
+  if (!http.begin(cfg.apiUrl)) return Result::Net;
   http.addHeader("Content-Type", "application/json");
-  http.setUserAgent("Remi-Device/1.0 (ESP32)");
+  http.setUserAgent("Remi-Device/1.1 (ESP32)");
   if (auth) {
     http.addHeader("Authorization", "Bearer " + accessToken);
     if (householdId.length()) http.addHeader("x-household-id", householdId);
@@ -110,11 +161,15 @@ bool signIn() {
     refreshToken = "";
     prefs.remove("refresh");
   }
-  if (!strlen(REMI_EMAIL)) return false;
+  if (!cfg.email.length() || !cfg.password.length()) { setLink(Link::AuthFailed); return false; }
   vars.clear(); out.clear();
-  vars["e"] = REMI_EMAIL;
-  vars["p"] = REMI_PASSWORD;
-  if (post(Q_LOGIN, vars, out, false) == Result::Ok && storeTokens(out["data"]["login"])) return true;
+  vars["e"] = cfg.email;
+  vars["p"] = cfg.password;
+  if (post(Q_LOGIN, vars, out, false) == Result::Ok && storeTokens(out["data"]["login"])) {
+    prefs.remove("pass");  // signed in: keep only the rotating refresh token, not the password
+    cfg.password = "";
+    return true;
+  }
   setLink(Link::AuthFailed);
   return false;
 }
@@ -132,6 +187,10 @@ Result call(const char *query, JsonDocument &vars, JsonDocument &out) {
   return post(query, vars, out, true);
 }
 
+bool ok(Result r, JsonDocument &out, const char *field, const char *success) {
+  return r == Result::Ok && out["data"][field]["__typename"] == success;
+}
+
 bool loadIdentity() {
   JsonDocument vars, out;
   if (call(Q_WHOAMI, vars, out) != Result::Ok) return false;
@@ -147,18 +206,10 @@ bool loadIdentity() {
   return true;
 }
 
+// Inventory, grouped by food: total amount (same unit), soonest expiry. Feeds Home and the Kitchen page.
 bool syncKitchen() {
-  // Count distinct foods in stock, and those expiring within three days ("use first").
-  constexpr int MAX_FOODS = 400;
-  static char ids[MAX_FOODS][37];
-  static bool soon[MAX_FOODS];
-  int foods = 0;
-  char cutoff[24] = "";
-  time_t now = time(nullptr);
-  if (now > 1700000000) {
-    now += 3 * 86400;
-    strftime(cutoff, sizeof cutoff, "%Y-%m-%dT%H:%M:%S", gmtime(&now));
-  }
+  static KitchenItem items[MAX_KITCHEN];
+  int count = 0, useFirst = 0;
   JsonDocument vars, out;
   String after;
   for (int page = 0; page < 10; ++page) {
@@ -167,25 +218,42 @@ bool syncKitchen() {
     if (call(Q_INVENTORY, vars, out) != Result::Ok) return false;
     JsonObject inv = out["data"]["inventory"];
     for (JsonObject n : inv["nodes"].as<JsonArray>()) {
-      if (atof(n["quantity"] | "0") <= 0) continue;
+      double qty = atof(n["quantity"] | "0");
+      if (qty <= 0) continue;
       const char *id = n["foodId"] | "";
-      const char *exp = n["estimatedExpiryAt"] | "";
       int i = 0;
-      while (i < foods && strcmp(ids[i], id)) ++i;
-      if (i == foods) {
-        if (foods == MAX_FOODS) continue;
-        snprintf(ids[foods], 37, "%s", id);
-        soon[foods++] = false;
+      while (i < count && strcmp(items[i].foodId, id)) ++i;
+      int days = daysUntil(n["estimatedExpiryAt"] | "");
+      if (i == count) {
+        if (count == MAX_KITCHEN) continue;
+        KitchenItem &k = items[count++];
+        snprintf(k.foodId, sizeof k.foodId, "%s", id);
+        ascii(k.name, sizeof k.name, n["foodName"] | "");
+        amount(k.amount, sizeof k.amount, n["quantity"] | "");
+        snprintf(k.unit, sizeof k.unit, "%s", n["unit"] | "");
+        k.daysLeft = days;
+      } else {
+        KitchenItem &k = items[i];
+        if (!strcmp(k.unit, n["unit"] | "")) {  // same unit: add up the batches
+          char sum[16];
+          snprintf(sum, sizeof sum, "%.3f", atof(k.amount) + qty);
+          amount(k.amount, sizeof k.amount, sum);
+        }
+        if (days < k.daysLeft) k.daysLeft = days;
       }
-      if (cutoff[0] && exp[0] && strcmp(exp, cutoff) < 0) soon[i] = true;
     }
     if (!(inv["hasNextPage"] | false)) break;
     after = inv["endCursor"].as<const char *>();
   }
-  int useFirst = 0;
-  for (int i = 0; i < foods; ++i) useFirst += soon[i];
+  std::sort(items, items + count, [](const KitchenItem &a, const KitchenItem &b) {
+    return a.daysLeft != b.daysLeft ? a.daysLeft < b.daysLeft : strcmp(a.name, b.name) < 0;
+  });
+  for (int i = 0; i < count; ++i) useFirst += items[i].daysLeft <= 3;
   lockData();
-  data.foods = foods;
+  memcpy(data.kitchen, items, sizeof(KitchenItem) * count);
+  data.kitchenCount = count;
+  data.kitchenLoaded = true;
+  data.foods = count;
   data.useFirst = useFirst;
   data.syncedAtMs = millis();
   unlockData();
@@ -197,8 +265,10 @@ bool syncShopping() {
   if (call(Q_SHOPPING, vars, out) != Result::Ok) return false;
   ShopItem items[MAX_SHOP];
   int count = 0;
+  char listId[40] = "";
   for (JsonObject list : out["data"]["shoppingLists"].as<JsonArray>()) {
     if (list["status"] != "ACTIVE") continue;
+    if (!listId[0]) snprintf(listId, sizeof listId, "%s", list["id"] | "");
     for (JsonObject it : list["items"].as<JsonArray>()) {
       if (it["status"] != "NEEDED" || count == MAX_SHOP) continue;
       ShopItem &s = items[count++];
@@ -217,6 +287,7 @@ bool syncShopping() {
   memcpy(data.shop, items, sizeof(ShopItem) * count);
   data.shopCount = count;
   data.shopLoaded = true;
+  snprintf(data.shoppingListId, sizeof data.shoppingListId, "%s", listId);
   unlockData();
   return true;
 }
@@ -244,17 +315,63 @@ bool syncIdeas() {
   return true;
 }
 
+uint8_t mealIndex(const char *type) {
+  if (!strcmp(type, "BREAKFAST")) return 0;
+  if (!strcmp(type, "LUNCH")) return 1;
+  if (!strcmp(type, "DINNER")) return 2;
+  if (!strcmp(type, "SNACK")) return 3;
+  return 4;
+}
+
+bool syncToday() {
+  if (!clockSet()) return false;
+  char d[12];
+  today(d, sizeof d);
+  JsonDocument vars, out;
+  vars["d"] = d;
+  if (call(Q_TODAY, vars, out) != Result::Ok) return false;
+  PlannedMeal meals[MAX_PLANNED];
+  int count = 0;
+  for (JsonObject plan : out["data"]["mealPlans"].as<JsonArray>())
+    for (JsonObject m : plan["meals"].as<JsonArray>()) {
+      if (count == MAX_PLANNED || strcmp(m["mealDate"] | "", d)) continue;
+      PlannedMeal &p = meals[count++];
+      snprintf(p.recipeId, sizeof p.recipeId, "%s", m["recipeId"] | "");
+      ascii(p.name, sizeof p.name, m["recipeName"] | "");
+      p.mealType = mealIndex(m["mealType"] | "");
+    }
+  std::sort(meals, meals + count, [](const PlannedMeal &a, const PlannedMeal &b) { return a.mealType < b.mealType; });
+  JsonArray days = out["data"]["dailyNutrition"];
+  JsonObject goal = out["data"]["myProfile"]["goal"];
+  lockData();
+  memcpy(data.planned, meals, sizeof(PlannedMeal) * count);
+  data.plannedCount = count;
+  data.todayLoaded = true;
+  JsonObject n = days.size() ? days[0].as<JsonObject>() : JsonObject();
+  data.kcal = n.isNull() ? 0 : int(atof(n["calories"] | "0") + 0.5);
+  data.protein = n.isNull() ? 0 : int(atof(n["proteinG"] | "0") + 0.5);
+  data.mealsLogged = n.isNull() ? 0 : int(n["mealCount"] | 0);
+  data.kcalTarget = goal.isNull() ? 0 : int(goal["calorieTarget"] | 0);
+  data.proteinTarget = goal.isNull() ? 0 : int(goal["proteinTargetG"] | 0);
+  unlockData();
+  return true;
+}
+
 void syncAll() {
+  if (setupMode) return;
   if (WiFi.status() != WL_CONNECTED) { setLink(Link::Offline); return; }
   if (!householdId.length() && !loadIdentity()) {
     if (data.link != Link::AuthFailed) setLink(Link::Offline);
     return;
   }
-  bool ok = syncKitchen();
-  ok = syncShopping() && ok;
-  ok = syncIdeas() && ok;
-  if (data.link != Link::AuthFailed) setLink(ok ? Link::Online : Link::Offline);
+  bool good = syncKitchen();
+  good = syncShopping() && good;
+  good = syncIdeas() && good;
+  good = syncToday() && good;
+  if (data.link != Link::AuthFailed) setLink(good ? Link::Online : Link::Offline);
 }
+
+String key(const char *what, const char *id) { return String("remi-device-") + what + "-" + id + "-" + String(uint32_t(time(nullptr) / 60)); }
 
 void putAway() {
   ShopItem picked[MAX_SHOP];
@@ -263,9 +380,8 @@ void putAway() {
   for (int i = 0; i < data.shopCount; ++i)
     if (data.shop[i].checked) picked[n++] = data.shop[i];
   unlockData();
-  char today[12] = "";
-  time_t now = time(nullptr);
-  if (now > 1700000000) strftime(today, sizeof today, "%Y-%m-%d", localtime(&now));
+  char d[12] = "";
+  if (clockSet()) today(d, sizeof d);
   int added = 0;
   bool failed = false;
   for (int i = 0; i < n; ++i) {
@@ -275,11 +391,8 @@ void putAway() {
     in["amount"] = picked[i].amount;
     in["unit"] = picked[i].unit;
     in["idempotencyKey"] = String("remi-device-") + picked[i].id;  // a retry never adds the same purchase twice
-    if (today[0]) in["purchaseDate"] = today;
-    if (call(Q_ADD_STOCK, vars, out) != Result::Ok || out["data"]["addStock"]["__typename"] != "InventoryMutationSuccessType") {
-      failed = true;
-      continue;
-    }
+    if (d[0]) in["purchaseDate"] = d;
+    if (!ok(call(Q_ADD_STOCK, vars, out), out, "addStock", "InventoryMutationSuccessType")) { failed = true; continue; }
     vars.clear(); out.clear();
     JsonObject mark = vars["i"].to<JsonObject>();
     mark["id"] = picked[i].id;
@@ -295,10 +408,33 @@ void putAway() {
   unlockData();
 }
 
-void loadRecipe(int index) {
+void kitchenAction(int index, bool used) {
+  KitchenItem it;
+  lockData();
+  bool valid = index >= 0 && index < data.kitchenCount;
+  if (valid) it = data.kitchen[index];
+  unlockData();
+  bool good = false;
+  if (valid) {
+    JsonDocument vars, out;
+    JsonObject in = vars["i"].to<JsonObject>();
+    in["foodId"] = it.foodId;
+    in["amount"] = it.amount;
+    in["unit"] = it.unit;
+    in["idempotencyKey"] = key(used ? "use" : "toss", it.foodId);
+    good = used ? ok(call(Q_CONSUME, vars, out), out, "consumeStock", "InventoryMutationSuccessType")
+                : ok(call(Q_DISCARD, vars, out), out, "discardStock", "InventoryMutationSuccessType");
+    if (good) syncKitchen();
+  }
+  lockData();
+  data.kitchenAction = good ? Job::Done : Job::Failed;
+  unlockData();
+}
+
+void loadRecipe() {
   char id[40];
   lockData();
-  snprintf(id, sizeof id, "%s", index < data.suggestionCount ? data.suggestions[index].id : "");
+  snprintf(id, sizeof id, "%s", data.recipeId);
   data.recipe = Job::Working;
   unlockData();
   JsonDocument vars, out;
@@ -310,7 +446,6 @@ void loadRecipe(int index) {
   JsonObject r = out["data"]["recipe"];
   JsonArray steps = r["steps"];
   lockData();
-  snprintf(data.recipeId, sizeof data.recipeId, "%s", id);
   ascii(data.recipeName, sizeof data.recipeName, r["name"] | "");
   data.recipeMinutes = int(r["cookTimeMin"] | 0) + int(r["prepTimeMin"] | 0);
   int count = 0;
@@ -324,48 +459,183 @@ void loadRecipe(int index) {
     ++count;
   }
   data.stepCount = count;
+  int ing = 0;
+  for (JsonObject g : r["ingredients"].as<JsonArray>()) {
+    if (ing == 24 || (g["optional"] | false)) continue;
+    Ingredient &x = data.ingredients[ing++];
+    snprintf(x.foodId, sizeof x.foodId, "%s", g["foodId"] | "");
+    snprintf(x.amount, sizeof x.amount, "%s", g["quantity"] | "0");
+    snprintf(x.unit, sizeof x.unit, "%s", g["unit"] | "");
+  }
+  data.ingredientCount = ing;
   data.recipe = count ? Job::Done : Job::Failed;
   unlockData();
 }
 
-void connectWifi() {
-  if (WiFi.status() == WL_CONNECTED) return;
+// "I cooked it": log the recipe as a meal, which deducts its ingredients from the kitchen.
+void cookedIt() {
+  JsonDocument vars, out;
+  JsonObject in = vars["i"].to<JsonObject>();
+  time_t now = time(nullptr);
+  char iso[24];
+  strftime(iso, sizeof iso, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
+  int hour = localtime(&now)->tm_hour;
+  lockData();
+  in["mealType"] = hour < 11 ? "BREAKFAST" : hour < 16 ? "LUNCH" : hour < 22 ? "DINNER" : "SNACK";
+  in["eatenAt"] = iso;
+  in["name"] = data.recipeName;
+  in["idempotencyKey"] = key("meal", data.recipeId);
+  JsonArray items = in["items"].to<JsonArray>();
+  for (int i = 0; i < data.ingredientCount; ++i) {
+    JsonObject x = items.add<JsonObject>();
+    x["foodId"] = data.ingredients[i].foodId;
+    x["amount"] = data.ingredients[i].amount;
+    x["unit"] = data.ingredients[i].unit;
+  }
+  unlockData();
+  bool good = clockSet() && ok(call(Q_LOG_MEAL, vars, out), out, "logMeal", "MealLogSuccessType");
+  if (good) { syncKitchen(); syncToday(); syncIdeas(); }
+  lockData();
+  data.cooked = good ? Job::Done : Job::Failed;
+  unlockData();
+}
+
+void searchFoods() {
+  char q[32];
+  lockData();
+  snprintf(q, sizeof q, "%s", data.pickQuery);
+  unlockData();
+  JsonDocument vars, out;
+  vars["q"] = q;
+  Result r = call(Q_FOODS, vars, out);
+  FoodPick picks[MAX_PICKS];
+  int count = 0;
+  if (r == Result::Ok)
+    for (JsonObject f : out["data"]["foods"]["nodes"].as<JsonArray>()) {
+      if (count == MAX_PICKS) break;
+      FoodPick &p = picks[count++];
+      snprintf(p.foodId, sizeof p.foodId, "%s", f["id"] | "");
+      ascii(p.name, sizeof p.name, f["name"] | "");
+      snprintf(p.unit, sizeof p.unit, "%s", f["defaultUnit"] | "PIECE");
+    }
+  lockData();
+  memcpy(data.picks, picks, sizeof(FoodPick) * count);
+  data.pickCount = count;
+  data.search = r == Result::Ok ? Job::Done : Job::Failed;
+  unlockData();
+}
+
+void addToList(int index) {
+  FoodPick p;
+  char listId[40];
+  lockData();
+  bool valid = index >= 0 && index < data.pickCount && data.shoppingListId[0];
+  if (valid) p = data.picks[index];
+  snprintf(listId, sizeof listId, "%s", data.shoppingListId);
+  unlockData();
+  bool good = false;
+  if (valid) {
+    JsonDocument vars, out;
+    JsonObject in = vars["i"].to<JsonObject>();
+    in["foodId"] = p.foodId;
+    in["quantity"] = "1";
+    in["unit"] = p.unit;
+    in["shoppingListId"] = listId;
+    in["idempotencyKey"] = key("list", p.foodId);
+    good = call(Q_ADD_TO_LIST, vars, out) == Result::Ok;
+    if (good) syncShopping();
+  }
+  lockData();
+  data.addItem = good ? Job::Done : Job::Failed;
+  unlockData();
+}
+
+void startSetupNetwork() {
+  setupMode = true;
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(SETUP_SSID, SETUP_PASS);
+  lockData();
+  data.link = Link::Setup;
+  snprintf(data.setupSsid, sizeof data.setupSsid, "%s", SETUP_SSID);
+  snprintf(data.setupPass, sizeof data.setupPass, "%s", SETUP_PASS);
+  snprintf(data.remoteUrl, sizeof data.remoteUrl, "http://%s", WiFi.softAPIP().toString().c_str());
+  unlockData();
+  Serial.printf("Setup Wi-Fi \"%s\" (password %s), open %s\n", SETUP_SSID, SETUP_PASS, data.remoteUrl);
+}
+
+bool connectWifi() {
+  if (WiFi.status() == WL_CONNECTED) return true;
   setLink(Link::Connecting);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setHostname("remi");
+  WiFi.begin(cfg.ssid.c_str(), cfg.wifiPass.c_str());
   for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; ++i) delay(500);
-  if (WiFi.status() != WL_CONNECTED) { setLink(Link::Offline); return; }
-  Serial.printf("Wi-Fi connected, IP %s\n", WiFi.localIP().toString().c_str());
+  if (WiFi.status() != WL_CONNECTED) { setLink(Link::Offline); return false; }
+  MDNS.begin("remi");
+  MDNS.addService("http", "tcp", 80);
+  lockData();
+  snprintf(data.remoteUrl, sizeof data.remoteUrl, "http://%s", WiFi.localIP().toString().c_str());
+  snprintf(data.wifiName, sizeof data.wifiName, "%s", cfg.ssid.c_str());
+  data.setupSsid[0] = 0;
+  unlockData();
+  Serial.printf("Wi-Fi connected, remote at %s (or http://remi.local)\n", data.remoteUrl);
+  return true;
 }
 
 void task(void *) {
   prefs.begin("remi", false);
   refreshToken = prefs.getString("refresh", "");
-  connectWifi();
-  configTzTime(REMI_TZ, "pool.ntp.org", "time.google.com");
-  syncAll();
+  if (!cfg.ssid.length() || !connectWifi()) {
+    startSetupNetwork();  // no Wi-Fi saved, or it can't be reached: let a phone set it up
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+  configTzTime(cfg.tz.c_str(), "pool.ntp.org", "time.google.com");
+  for (int i = 0; i < 20 && !clockSet(); ++i) delay(250);  // Today needs the date
+  if (!cfg.apiUrl.length()) setLink(Link::AuthFailed);
+  else syncAll();
   uint32_t lastSync = millis();
   for (;;) {
     Cmd cmd;
     uint32_t wait = REFRESH_EVERY_MS - min<uint32_t>(REFRESH_EVERY_MS, millis() - lastSync);
     if (xQueueReceive(commands, &cmd, pdMS_TO_TICKS(wait)) != pdTRUE) cmd = {Request::Refresh, 0};
-    connectWifi();
-    if (cmd.r == Request::Refresh) { syncAll(); lastSync = millis(); }
-    else if (cmd.r == Request::PutAway) putAway();
-    else if (cmd.r == Request::LoadRecipe) loadRecipe(cmd.arg);
+    if (!connectWifi()) continue;
+    switch (cmd.r) {
+      case Request::Refresh: syncAll(); lastSync = millis(); break;
+      case Request::PutAway: putAway(); break;
+      case Request::LoadRecipe: loadRecipe(); break;
+      case Request::CookedIt: cookedIt(); break;
+      case Request::KitchenUse: kitchenAction(cmd.arg, true); break;
+      case Request::KitchenToss: kitchenAction(cmd.arg, false); break;
+      case Request::SearchFoods: searchFoods(); break;
+      case Request::AddToList: addToList(cmd.arg); break;
+    }
   }
 }
 
 }  // namespace
 
+bool backendInSetupMode() { return setupMode; }
+
 void backendRequest(Request r, int arg) {
   if (r == Request::PutAway) { lockData(); data.putAway = Job::Working; unlockData(); }
   if (r == Request::LoadRecipe) { lockData(); data.recipe = Job::Working; unlockData(); }
+  if (setupMode) {  // nothing to talk to yet: fail fast so the UI doesn't spin
+    lockData();
+    if (r == Request::PutAway) data.putAway = Job::Failed;
+    if (r == Request::LoadRecipe) data.recipe = Job::Failed;
+    if (r == Request::CookedIt) data.cooked = Job::Failed;
+    if (r == Request::KitchenUse || r == Request::KitchenToss) data.kitchenAction = Job::Failed;
+    if (r == Request::SearchFoods) data.search = Job::Failed;
+    if (r == Request::AddToList) data.addItem = Job::Failed;
+    unlockData();
+    return;
+  }
   Cmd cmd{r, arg};
   xQueueSend(commands, &cmd, 0);
 }
 
 void backendBegin() {
+  cfg = loadConfig();
   commands = xQueueCreate(8, sizeof(Cmd));
   xTaskCreatePinnedToCore(task, "remi-net", 12288, nullptr, 1, nullptr, 0);
 }

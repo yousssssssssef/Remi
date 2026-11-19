@@ -1,6 +1,6 @@
 // Host preview: runs the real device UI + synth with sample data and a scripted knob session.
 // Writes raw frames (RGB24, 128x160 @ 30 fps), a WAV, and PPM stills for key screens.
-//   c++ -std=c++17 -O2 -I../firmware/Remi_Device preview.cpp ../firmware/Remi_Device/{gfx,ui,synth}.cpp -o preview
+//   see render.sh (C++17 for the UI, plus the vendored qrcode.c)
 //   ./preview out_dir
 #include <math.h>
 #include <stdio.h>
@@ -27,27 +27,41 @@ void playSfx(Sfx s) { synth::play(s); }
 
 #include "sample_backend.h"
 
-struct Ev { uint32_t at; ui::Input in; const char *shot; };
+struct Ev { uint32_t at; ui::Input in; const char *shot; const char *add = nullptr; const char *ask = nullptr; };
 
 int main(int argc, char **argv) {
   std::string out = argc > 1 ? argv[1] : ".";
   sampleData();
   synth::setVolume(1.0f);  // louder than the device default so the preview is easy to hear
   using I = ui::Input;
-  const I R = I::Right, L = I::Left, P = I::Press, LP = I::LongPress;
-  // Script (ms after boot). The intro runs ~9.2 s on its own.
+  const I R = I::Right, P = I::Press, LP = I::LongPress;
+  // Script (ms after boot). The boot runs about 6.2 s on its own. Pages, left to right:
+  // Home, Today, Kitchen, Just bought, Cook, Ask Remi, Connect.
   std::vector<Ev> script = {
-      {9900, P, nullptr},  {11200, P, "01-home"},
-      {11400, R, nullptr}, {12600, P, "02-just-bought"}, {13300, R, nullptr}, {13700, P, nullptr},
-      {14100, R, nullptr}, {14400, P, nullptr}, {14800, R, nullptr}, {15000, R, nullptr}, {15300, P, nullptr},
-      {15700, R, nullptr}, {16000, R, nullptr}, {16200, R, "03-shopping-list"}, {16700, P, nullptr},
-      {20500, R, "04-put-away-done"}, {21700, P, "05-cook"}, {22600, R, nullptr}, {23000, L, "06-ideas"}, {23400, P, nullptr},
-      {24600, P, "07-recipe"}, {25800, P, "08-step"}, {26700, P, "09-step-timer"}, {27600, R, nullptr},
-      {28200, R, nullptr}, {28800, R, nullptr}, {29400, R, nullptr}, {30000, R, nullptr}, {30700, R, "10-long-step"},
-      {31200, R, nullptr}, {31700, R, nullptr}, {32300, R, nullptr}, {33600, P, "11-finished"}, {34300, R, nullptr},
-      {35300, P, "12-talk"}, {36400, P, "13-talk-speaking"}, {39000, L, nullptr}, {39400, L, nullptr},
-      {39800, L, nullptr}, {41200, LP, "14-home-again"}};
-  const uint32_t END = 42000;
+      {7600, R, "01-home"},                                   // -> Today
+      {8800, P, "02-today"}, {9800, LP, "03-today-planned"},  // planned list, back
+      {10400, R, nullptr},                                    // -> Kitchen
+      {11600, P, "04-kitchen"}, {12400, R, nullptr}, {13000, P, "05-kitchen-list"},  // list, 2nd item, action sheet
+      {13700, R, "06-kitchen-sheet"}, {14300, P, nullptr},     // "Threw it out"
+      {15600, LP, "07-kitchen-updated"},                       // back to top
+      {16200, R, nullptr},                                     // -> Just bought
+      {17400, P, "08-just-bought"}, {18000, P, nullptr}, {18400, R, nullptr}, {18700, P, nullptr},
+      {19100, R, nullptr}, {19400, R, nullptr}, {19700, R, nullptr}, {20000, R, nullptr}, {20300, R, nullptr},
+      {20800, P, "09-shopping-list"}, {22500, I::Left, "10-put-away-done"}, {24400, R, nullptr},  // -> Cook
+      {25000, P, "11-cook"}, {25800, P, "12-ideas"}, {27000, P, "13-recipe"},
+      {28000, R, "14-step"}, {28600, R, nullptr}, {29200, R, nullptr}, {29800, R, nullptr}, {30400, R, nullptr},
+      {31000, R, nullptr}, {31600, R, nullptr}, {32200, R, nullptr}, {32800, R, nullptr},
+      {34000, P, "15-cooked-it"}, {35600, R, "16-kitchen-updated-toast"},  // -> Ask
+      {36800, P, "17-ask"}, {37400, R, nullptr}, {38000, P, "18-ask-list"},  // "What should I use first?"
+      {40400, R, "19-ask-answer"},                                            // -> Connect (from answer: back first)
+      {40600, LP, nullptr}, {41000, R, nullptr},
+      {42600, LP, "20-connect"},
+      {43400, LP, nullptr, "milk"},                                           // phone remote: add milk
+      {45000, R, "21-add-to-list"}, {45600, P, nullptr},
+      {47000, LP, "22-added"},
+      {47800, LP, nullptr, nullptr, "what can I cook tonight?"},              // phone remote: a question
+      {50600, LP, "23-typed-question"}};
+  const uint32_t END = 52000;
   FILE *video = fopen((out + "/frames.rgb").c_str(), "wb");
   std::vector<int16_t> audio;
   std::vector<int16_t> chunk;
@@ -68,7 +82,9 @@ int main(int argc, char **argv) {
         }
         fclose(s);
       }
-      ui::input(script[next].in);
+      if (script[next].add) ui::textInput(ui::TextKind::Add, script[next].add);
+      else if (script[next].ask) ui::textInput(ui::TextKind::Ask, script[next].ask);
+      else ui::input(script[next].in);
       ++next;
     }
     finishPending();

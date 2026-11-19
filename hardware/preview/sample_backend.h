@@ -2,6 +2,7 @@
 // Sample kitchen data and a fake Remi API with realistic delays, shared by the Mac preview (preview.cpp)
 // and the browser simulator (sim/wasm_main.cpp). Include after defining nowMs() and `data`.
 #include <stdio.h>
+#include <string.h>
 #include "app_data.h"
 
 struct Pending { Request r; int arg; uint32_t due; };
@@ -11,6 +12,7 @@ void backendRequest(Request r, int arg) {
   if (r == Request::PutAway) data.putAway = Job::Working;
   if (r == Request::LoadRecipe) data.recipe = Job::Working;
   if (pendingCount < 8) pending[pendingCount++] = {r, arg, nowMs() + (r == Request::PutAway ? 1100u : 700u)};
+  if (r == Request::CookedIt) data.cooked = Job::Working;
 }
 
 inline void copy(char *dst, size_t n, const char *s) { snprintf(dst, n, "%s", s); }
@@ -38,6 +40,30 @@ inline void sampleData() {
     data.suggestions[i].minutes = s[i].m; data.suggestions[i].have = s[i].h; data.suggestions[i].need = s[i].r;
   }
   data.suggestionsLoaded = true;
+  struct { const char *n, *a, *u; int d; } k[] = {
+      {"Baby spinach", "150", "GRAM", 1}, {"Greek yogurt", "1", "PIECE", 2}, {"Tomatoes", "4", "PIECE", 3},
+      {"Milk", "1", "LITER", 5}, {"Eggs", "8", "PIECE", 12}, {"Cheddar", "200", "GRAM", 20}, {"Red lentils", "500", "GRAM", NO_EXPIRY},
+      {"Rice", "1", "KILOGRAM", NO_EXPIRY}};
+  data.kitchenCount = 8;
+  for (int i = 0; i < 8; ++i) {
+    snprintf(data.kitchen[i].foodId, 40, "food-%d", i);
+    copy(data.kitchen[i].name, 32, k[i].n); copy(data.kitchen[i].amount, 16, k[i].a); copy(data.kitchen[i].unit, 12, k[i].u);
+    data.kitchen[i].daysLeft = k[i].d;
+  }
+  data.kitchenLoaded = true;
+  struct { const char *id, *n; uint8_t t; } m[] = {{"recipe-3", "Spinach omelette", 0}, {"recipe-0", "Shakshuka", 2}};
+  data.plannedCount = 2;
+  for (int i = 0; i < 2; ++i) { copy(data.planned[i].recipeId, 40, m[i].id); copy(data.planned[i].name, 48, m[i].n); data.planned[i].mealType = m[i].t; }
+  data.todayLoaded = true;
+  data.kcal = 1240; data.kcalTarget = 2000; data.protein = 62; data.proteinTarget = 110; data.mealsLogged = 2;
+  copy(data.shoppingListId, 40, "list-1");
+  copy(data.remoteUrl, 48, "http://192.168.1.42");
+}
+
+inline int recipeIndex(const char *id) {
+  for (int i = 0; i < data.suggestionCount; ++i)
+    if (!strcmp(data.suggestions[i].id, id)) return i;
+  return 0;
 }
 
 inline void finishPending() {
@@ -64,12 +90,31 @@ inline void finishPending() {
            "yolks are still soft. Check after five minutes; the pan keeps cooking the eggs after you take it off the heat."),
           "Scatter with parsley and serve straight from the pan with warm bread."};
       int mins[] = {6, 1, 10, 6, 0};
-      copy(data.recipeId, 40, data.suggestions[p.arg].id);
-      copy(data.recipeName, 56, data.suggestions[p.arg].name);
-      data.recipeMinutes = data.suggestions[p.arg].minutes;
+      int s = recipeIndex(data.recipeId);
+      copy(data.recipeName, 56, data.suggestions[s].name);
+      data.recipeMinutes = data.suggestions[s].minutes;
       data.stepCount = 5;
       for (int j = 0; j < 5; ++j) { copy(data.steps[j].text, 360, steps[j]); data.steps[j].minutes = mins[j]; }
       data.recipe = Job::Done;
+    }
+    if (p.r == Request::CookedIt) { data.cooked = Job::Done; data.kcal += 420; data.protein += 24; ++data.mealsLogged; }
+    if (p.r == Request::KitchenUse || p.r == Request::KitchenToss) {
+      for (int j = p.arg; j + 1 < data.kitchenCount; ++j) data.kitchen[j] = data.kitchen[j + 1];
+      --data.kitchenCount; data.foods = data.kitchenCount; data.kitchenAction = Job::Done;
+    }
+    if (p.r == Request::SearchFoods) {
+      const char *found[] = {"Whole milk", "Skimmed milk", "Oat milk", "Coconut milk"};
+      data.pickCount = 4;
+      for (int j = 0; j < 4; ++j) { snprintf(data.picks[j].foodId, 40, "pick-%d", j); copy(data.picks[j].name, 32, found[j]); copy(data.picks[j].unit, 12, "LITER"); }
+      data.search = Job::Done;
+    }
+    if (p.r == Request::AddToList) {
+      if (data.shopCount < MAX_SHOP) {
+        ShopItem &it = data.shop[data.shopCount++];
+        snprintf(it.id, 40, "item-new-%d", p.arg); copy(it.foodId, 40, data.picks[p.arg].foodId);
+        copy(it.name, 32, data.picks[p.arg].name); copy(it.amount, 16, "1"); copy(it.unit, 12, data.picks[p.arg].unit); it.checked = false;
+      }
+      data.addItem = Job::Done;
     }
   }
 }

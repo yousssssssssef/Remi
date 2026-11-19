@@ -5,6 +5,7 @@
 #include "app_data.h"
 #include "gfx.h"
 #include "boot_frames.h"
+#include "qrcode.h"
 
 using namespace gfx;
 
@@ -17,8 +18,8 @@ constexpr uint32_t UI_APPEAR_MS = 380;                  // Home content fades/ri
 constexpr uint32_t UI_APPEAR_AT = BOOT_MS - 140;
 constexpr uint32_t PAGE_SLIDE_MS = 300, MODE_FADE_MS = 200, LONG_TOAST_MS = 2600;
 
-enum Page { HOME, BOUGHT, COOK, TALK, PAGE_COUNT };
-enum class Mode { Top, List, Working, Done, Recipe, Steps, Finished, Speaking };
+enum Page { HOME, TODAY, KITCHEN, BOUGHT, COOK, ASK, CONNECT, PAGE_COUNT };
+enum class Mode { Top, List, Working, Done, Recipe, Steps, Finished, Sheet, Pick, Answer };
 
 struct Tween {
   float from = 0, to = 0;
@@ -51,14 +52,17 @@ uint32_t alarmNext = 0, alarmUntil = 0;
 
 uint32_t nextBlink = 2500, blinkUntil = 0;
 uint32_t speakUntil = 0;
-int talkLine = 0;
 uint32_t refreshAsked = 0;
 char toast[48] = "";
 uint32_t toastStart = 0, toastUntil = 0;
 uint32_t doneAt = 0;
 
-const char *const TALK_LINES[] = {"Hi! I'm Remi, your kitchen buddy.", "Soon you can just ask me what to cook.",
-                                  "My microphone is on the way!"};
+int sheetSel = 0;  // Kitchen: Used it / Threw it out / Cancel
+char answer[300] = "";
+const char *const QUESTIONS[] = {"What can I cook?", "What should I use first?", "What's on my list?",
+                                 "What's planned today?", "How am I doing today?"};
+constexpr int QUESTION_COUNT = 5;
+const char *const MEAL_NAMES[] = {"Breakfast", "Lunch", "Dinner", "Snack", "Meal"};
 const char *const DAYS[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 const char *const MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -129,6 +133,8 @@ void drawCard(int x, int y, int w, int h, uint8_t a) {
   fillRoundRect(x, y, w, h, 12, WHITE, a);
 }
 
+void spinner(int y, uint32_t now, uint8_t a);  // defined with the newer pages below
+
 const char *pageTitle(int p, char *buf, size_t n) {
   if (p == HOME) {
     struct tm t;
@@ -137,17 +143,22 @@ const char *pageTitle(int p, char *buf, size_t n) {
     snprintf(buf, n, "%s", g);
     return buf;
   }
-  if (p == BOUGHT) return mode == Mode::Top || page != BOUGHT ? "Just bought" : "Shopping list";
+  bool here = page == p && mode != Mode::Top;
+  if (p == TODAY) return here ? "Planned today" : "Today";
+  if (p == KITCHEN) return "Kitchen";
+  if (p == ASK) return "Ask Remi";
+  if (p == CONNECT) return "Connect";
+  if (p == BOUGHT) return !here ? "Just bought" : mode == Mode::Pick ? "Add to list" : "Shopping list";
   if (p == COOK) {
     if (page != COOK || mode == Mode::Top) return "Cook";
     return mode == Mode::List ? "Ideas for you" : "Cooking";
   }
-  return "Talk";
+  return "";
 }
 
 void drawHeader(uint32_t now, uint8_t a) {
   setOrigin(0, 0);
-  int bounce = (now < speakUntil) ? int(2.5f * fabsf(sinf((now - (speakUntil - 2400)) / 95.f))) : 0;
+  int bounce = (now < speakUntil) ? int(2.5f * fabsf(sinf(now / 95.f))) : 0;
   const Mask &face = now < blinkUntil ? AVATAR_BLINK : AVATAR_OPEN;
   drawMask(face, AVATAR_X, AVATAR_Y - bounce, COBALT, 255);  // the face is already on screen from the intro
   // Titles cross-fade while pages slide.
@@ -382,8 +393,14 @@ void cookPage(uint8_t a, uint32_t now) {
       fillCircle(64 + cosf(ang) * r, 62 + sinf(ang) * r, 2.5f, i % 2 ? PINK : COBALT, A(uint8_t(255 * p), a));
     }
     drawMask(ICON_POT_L, 49, 47, COBALT, a);
-    textCentered(FONT_TITLE, 64, 112, "Enjoy your meal!", INK, a);
-    textCentered(FONT_SMALL, 64, 127, "Press to finish", INK, A(150, a));
+    textCentered(FONT_TITLE, 64, 104, "Enjoy your meal!", INK, a);
+    drawPill(20, 114, 88, 18, COBALT, "I cooked it", WHITE, a, FONT_SMALL);
+    textCentered(FONT_SMALL, 64, 144, "Hold to skip", INK, A(130, a));
+    return;
+  }
+  if (mode == Mode::Working) {
+    textCentered(FONT_TITLE, 64, 80, "Updating kitchen", INK, a);
+    spinner(96, now, a);
     return;
   }
   // Steps: segmented progress, wrapped instruction, timer pill.
@@ -417,26 +434,294 @@ void cookPage(uint8_t a, uint32_t now) {
   }
 }
 
-void talkPage(uint8_t a, uint32_t now) {
-  bool speaking = page == TALK && now < speakUntil;
-  float pulse = speaking ? 0.5f + 0.5f * sinf(now / 110.f) : 0;
-  if (speaking) ring(64, 66, 30 + 6 * pulse, 2, PINK, A(uint8_t(120 * (1 - pulse)), a));
-  fillCircle(64, 66, 27, WHITE, a);
-  drawMask(ICON_MIC_L, 47, 49, speaking ? PINK : COBALT, a);
-  if (speaking) {  // speech bubble under the header, pointing at the face
-    const char *msg = TALK_LINES[talkLine];
-    int st[3], ln[3];
-    uint8_t ba = A(uint8_t(255 * easeOut((now - (speakUntil - 2400)) / 180.f)), a);
-    int n = wrap(FONT_SMALL, msg, 80, st, ln, 3);
-    if (n > 3) n = 3;
-    int h = 8 + n * 10;
-    fillRoundRect(28, 102, 96, h, 8, COBALT, ba);
-    for (int i = 0; i < n; ++i) textN(FONT_SMALL, 34, 112 + i * 10, msg + st[i], ln[i], WHITE, ba);
+// Shared list scaffolding: a white card with rows that follow the selection smoothly.
+void listScroll(int count, int visible, uint32_t now) {
+  float target = fminf(fmaxf(0, sel - (visible - 1) / 2.f), fmaxf(0, count - visible));
+  float dt = fminf(0.1f, (now - lastFrameMs) / 1000.f), k = 1 - expf(-dt / 0.05f);
+  scrollY += (target - scrollY) * k;
+  selY += (sel - selY) * k;
+}
+
+void spinner(int y, uint32_t now, uint8_t a) {
+  for (int i = 0; i < 3; ++i) fillCircle(52 + i * 12, y, 3.2f, COBALT, A(uint8_t(90 + 165 * (0.5f + 0.5f * sinf(now / 160.f - i))), a));
+}
+
+void bar(int x, int y, int w, int h, float frac, uint16_t c, uint8_t a) {
+  fillRoundRect(x, y, w, h, h / 2, INK, A(30, a));
+  int fw = int(w * clamp01(frac));
+  if (fw >= h) fillRoundRect(x, y, fw, h, h / 2, c, a);
+}
+
+void expiryLabel(char *buf, size_t n, int days) {
+  if (days == NO_EXPIRY) snprintf(buf, n, " ");
+  else if (days < 0) snprintf(buf, n, "past date");
+  else if (days == 0) snprintf(buf, n, "today");
+  else if (days == 1) snprintf(buf, n, "1 day");
+  else snprintf(buf, n, "%d days", days);
+}
+
+void todayPage(uint8_t a, uint32_t now) {
+  char buf[64];
+  if (page == TODAY && mode == Mode::List) {
+    drawCard(6, 26, 116, 120, a);
+    listScroll(data.plannedCount, 5, now);
+    fillRoundRect(10, 30 + int(roundf((selY - scrollY) * 23)), 108, 22, 7, PALE_LEMON, a);
+    for (int i = 0; i < data.plannedCount; ++i) {
+      int y = 30 + int(roundf((i - scrollY) * 23));
+      if (y < 26 || y > 123) continue;
+      textFit(FONT_LABEL, 15, y + 11, 98, data.planned[i].name, INK, a);
+      text(FONT_SMALL, 15, y + 20, MEAL_NAMES[data.planned[i].mealType < 5 ? data.planned[i].mealType : 4], PINK_TEXT, A(200, a));
+    }
     return;
   }
-  textCentered(FONT_TITLE, 64, 112, "Talk to Remi", INK, a);
-  textCentered(FONT_SMALL, 64, 125, "Microphone coming soon", INK, A(150, a));
-  textCentered(FONT_SMALL, 64, 140, "Press to say hi", COBALT, a);
+  drawCard(8, 27, 112, 62, a);
+  text(FONT_SMALL, 16, 38, "So far", INK, A(170, a));
+  if (data.kcal >= 0) {
+    if (data.kcalTarget > 0) {
+      snprintf(buf, sizeof buf, "goal %d", data.kcalTarget);
+      textRight(FONT_SMALL, 112, 38, buf, INK, A(150, a));
+    }
+    snprintf(buf, sizeof buf, "%d", data.kcal);
+    int w = text(FONT_FIGURE, 15, 61, buf, COBALT, a);
+    text(FONT_LABEL, 18 + w, 61, "kcal", INK, a);
+    bar(16, 65, 96, 5, data.kcalTarget > 0 ? float(data.kcal) / data.kcalTarget : 0, PINK, a);
+    if (data.proteinTarget > 0) snprintf(buf, sizeof buf, "Protein %d / %d g", data.protein, data.proteinTarget);
+    else snprintf(buf, sizeof buf, "Protein %d g", data.protein);
+    text(FONT_SMALL, 16, 81, buf, INK, A(190, a));
+    bar(16, 84, 96, 3, data.proteinTarget > 0 ? float(data.protein) / data.proteinTarget : 0, COBALT, a);
+  } else {
+    text(FONT_FIGURE, 15, 61, "--", COBALT, A(110, a));
+    text(FONT_SMALL, 16, 80, data.link == Link::Online ? "No meals logged yet" : "Waiting for Remi...", INK, A(160, a));
+  }
+  text(FONT_SMALL, 10, 104, "PLANNED", PINK_TEXT, a);
+  if (!data.todayLoaded) { text(FONT_BODY, 10, 119, "Loading...", INK, A(150, a)); return; }
+  if (data.plannedCount == 0) {
+    text(FONT_BODY, 10, 119, "Nothing planned today", INK, A(190, a));
+    text(FONT_SMALL, 10, 133, "Plan meals in the Remi app", INK, A(140, a));
+    return;
+  }
+  for (int i = 0; i < data.plannedCount && i < 2; ++i) {
+    const PlannedMeal &m = data.planned[i];
+    int w = text(FONT_SMALL, 10, 119 + i * 14, MEAL_NAMES[m.mealType < 5 ? m.mealType : 4], PINK_TEXT, A(220, a));
+    textFit(FONT_LABEL, 14 + w, 119 + i * 14, 104 - w, m.name, INK, a);
+  }
+  if (data.plannedCount > 2) {
+    snprintf(buf, sizeof buf, "+%d more \x7f press to cook", data.plannedCount - 2);
+    text(FONT_SMALL, 10, 146, buf, COBALT, a);
+  } else {
+    text(FONT_SMALL, 10, 146, "Press to cook it", COBALT, a);
+  }
+}
+
+void kitchenRow(const KitchenItem &it, int y, uint8_t a) {
+  char buf[48], exp[16];
+  expiryLabel(exp, sizeof exp, it.daysLeft);
+  bool soon = it.daysLeft <= 2;
+  textFit(FONT_LABEL, 15, y + 11, 70, it.name, INK, a);
+  if (it.daysLeft != NO_EXPIRY) {
+    int pw = textWidth(FONT_SMALL, exp) + 10;
+    fillRoundRect(115 - pw, y + 3, pw, 12, 6, soon ? PALE_PINK : PALE_LEMON, a);
+    textCentered(FONT_SMALL, 115 - pw / 2, y + 12, exp, soon ? PINK_TEXT : COBALT, a);
+  }
+  snprintf(buf, sizeof buf, "%s %s", it.amount, unitShort(it.unit));
+  text(FONT_SMALL, 15, y + 20, buf, INK, A(140, a));
+}
+
+void kitchenPage(uint8_t a, uint32_t now) {
+  char buf[48];
+  bool listing = page == KITCHEN && (mode == Mode::List || mode == Mode::Sheet || mode == Mode::Working);
+  if (!listing) {
+    if (!data.kitchenLoaded) {
+      drawMask(ICON_HOME, 58, 50, COBALT, a);
+      textCentered(FONT_BODY, 64, 86, data.link == Link::Online ? "Checking the shelves..." : "Waiting for Remi...", INK, A(170, a));
+      return;
+    }
+    snprintf(buf, sizeof buf, "%d", data.kitchenCount);
+    int w = textWidth(FONT_FIGURE, buf) + 4 + textWidth(FONT_LABEL, "foods");
+    int x = text(FONT_FIGURE, 64 - w / 2, 52, buf, COBALT, a);
+    text(FONT_LABEL, 64 - w / 2 + x + 4, 52, data.kitchenCount == 1 ? "food" : "foods", INK, a);
+    if (data.kitchenCount == 0) {
+      textCentered(FONT_SMALL, 64, 70, "Put away groceries to fill it", INK, A(150, a));
+      return;
+    }
+    drawCard(6, 60, 116, 74, a);
+    for (int i = 0; i < data.kitchenCount && i < 3; ++i) kitchenRow(data.kitchen[i], 63 + i * 23, a);
+    text(FONT_SMALL, 10, 146, "Press to see everything", COBALT, a);
+    return;
+  }
+  drawCard(6, 26, 116, 120, a);
+  listScroll(data.kitchenCount, 5, now);
+  fillRoundRect(10, 30 + int(roundf((selY - scrollY) * 23)), 108, 22, 7, PALE_LEMON, a);
+  for (int i = 0; i < data.kitchenCount; ++i) {
+    int y = 30 + int(roundf((i - scrollY) * 23));
+    if (y < 26 || y > 123) continue;
+    kitchenRow(data.kitchen[i], y, a);
+  }
+  if (mode == Mode::Sheet || mode == Mode::Working) {  // action sheet over the list
+    fillRect(0, 22, W, 138, BG, A(170, a));
+    drawCard(10, 52, 108, 84, a);
+    textFit(FONT_LABEL, 18, 68, 92, data.kitchen[sel].name, INK, a);
+    if (mode == Mode::Working) { spinner(100, now, a); return; }
+    const char *opts[] = {"Used it up", "Threw it out", "Cancel"};
+    for (int i = 0; i < 3; ++i) {
+      int y = 76 + i * 19;
+      if (i == sheetSel) fillRoundRect(14, y, 100, 17, 8, i == 2 ? PALE_LEMON : COBALT, a);
+      textCentered(FONT_SMALL, 64, y + 12, opts[i], i == sheetSel && i < 2 ? WHITE : INK, a);
+    }
+  }
+}
+
+void askPage(uint8_t a, uint32_t now) {
+  if (page == ASK && mode == Mode::List) {
+    drawCard(6, 26, 116, 120, a);
+    listScroll(QUESTION_COUNT, 5, now);
+    fillRoundRect(10, 30 + int(roundf((selY - scrollY) * 23)), 108, 22, 7, PALE_LEMON, a);
+    for (int i = 0; i < QUESTION_COUNT; ++i) {
+      int y = 30 + int(roundf((i - scrollY) * 23));
+      if (y < 26 || y > 123) continue;
+      textFit(FONT_LABEL, 15, y + 15, 98, QUESTIONS[i], INK, a);
+    }
+    return;
+  }
+  if (page == ASK && mode == Mode::Answer) {
+    int st[9], ln[9];
+    int n = wrap(FONT_SMALL, answer, 96, st, ln, 9);
+    if (n > 9) n = 9;
+    float p = easeOut((now - modeAt) / 220.f);
+    int h = 16 + n * 11;
+    fillRoundRect(10, 30, 108, h, 10, COBALT, a);
+    // little tail pointing up at Remi's face
+    for (int i = 0; i < 5; ++i) fillRect(18 + i, 30 - 5 + i, 6 - i, 1, COBALT, a);
+    // words appear as he speaks
+    int shown = int(strlen(answer) * clamp01((now - modeAt) / 1400.f));
+    int printed = 0;
+    for (int i = 0; i < n; ++i) {
+      int len = ln[i];
+      if (printed + len > shown) len = shown - printed;
+      if (len > 0) textN(FONT_SMALL, 18, 44 + i * 11, answer + st[i], len, WHITE, uint8_t(255 * p * a / 255));
+      printed += ln[i];
+    }
+    return;
+  }
+  fillCircle(64, 62, 27, WHITE, a);
+  drawMask(ICON_MIC_L, 47, 45, COBALT, a);
+  textCentered(FONT_TITLE, 64, 108, "Ask Remi", INK, a);
+  textCentered(FONT_SMALL, 64, 122, "Press for questions", INK, A(150, a));
+  textCentered(FONT_SMALL, 64, 134, "or type on your phone", INK, A(150, a));
+}
+
+// QR code for the phone remote (or the setup Wi-Fi), regenerated only when the text changes.
+uint8_t qrBuf[160];
+QRCode qr;
+char qrText[96] = "";
+bool qrOk = false;
+
+void connectPage(uint8_t a, uint32_t now) {
+  char want[96];
+  bool setup = data.setupSsid[0];
+  if (setup) snprintf(want, sizeof want, "WIFI:T:WPA;S:%s;P:%s;;", data.setupSsid, data.setupPass);
+  else snprintf(want, sizeof want, "%s", data.remoteUrl);
+  if (strcmp(want, qrText)) {
+    snprintf(qrText, sizeof qrText, "%s", want);
+    qrOk = want[0] && qrcode_initText(&qr, qrBuf, 3, ECC_LOW, want) == 0;
+  }
+  if (!qrOk) {
+    drawMask(ICON_WIFI, 59, 52, COBALT, a);
+    textCentered(FONT_BODY, 64, 86, "Starting Wi-Fi...", INK, A(180, a));
+    return;
+  }
+  int scale = 3, size = qr.size * scale, x0 = 64 - size / 2, y0 = 30;  // version 3: 29 modules, 87 px
+  fillRoundRect(x0 - 6, y0 - 6, size + 12, size + 12, 8, WHITE, a);
+  for (int y = 0; y < qr.size; ++y)
+    for (int x = 0; x < qr.size; ++x)
+      if (qrcode_getModule(&qr, x, y)) fillRect(x0 + x * scale, y0 + y * scale, scale, scale, INK, a);
+  int ty = y0 + size + 17;
+  if (setup) {
+    textCentered(FONT_SMALL, 64, ty, "Scan to join Remi's Wi-Fi,", INK, A(190, a));
+    textCentered(FONT_SMALL, 64, ty + 10, "then open 192.168.4.1", COBALT, a);
+  } else {
+    textCentered(FONT_SMALL, 64, ty, "Scan for the phone remote", INK, A(190, a));
+    textCentered(FONT_SMALL, 64, ty + 10, data.remoteUrl, COBALT, a);
+  }
+}
+
+void pickOverlay(uint8_t a, uint32_t now) {  // Just bought page, Pick mode: choose a food to add
+  char buf[48];
+  snprintf(buf, sizeof buf, "\"%s\"", data.pickQuery);
+  textFit(FONT_SMALL, 10, 36, 108, buf, INK, A(160, a));
+  if (data.search == Job::Working || data.addItem == Job::Working) { spinner(80, now, a); return; }
+  if (data.search == Job::Failed) { textCentered(FONT_BODY, 64, 80, "Couldn't search", INK, a); return; }
+  if (data.pickCount == 0) {
+    textCentered(FONT_BODY, 64, 76, "No food by that name", INK, A(190, a));
+    textCentered(FONT_SMALL, 64, 92, "Try another word on your phone", INK, A(140, a));
+    return;
+  }
+  drawCard(6, 42, 116, 104, a);
+  listScroll(data.pickCount, 4, now);
+  fillRoundRect(10, 46 + int(roundf((selY - scrollY) * 24)), 108, 22, 7, PALE_LEMON, a);
+  for (int i = 0; i < data.pickCount; ++i) {
+    int y = 46 + int(roundf((i - scrollY) * 24));
+    if (y < 42 || y > 124) continue;
+    textFit(FONT_LABEL, 15, y + 15, 90, data.picks[i].name, INK, a);
+  }
+}
+
+// Answers from what Remi already knows about your kitchen. The microphone and a language model come later.
+void answerQuestion(int q) {
+  char *o = answer;
+  size_t n = sizeof answer;
+  if (q == 0) {
+    if (!data.suggestionCount) { snprintf(o, n, "Add some food to your kitchen and I'll find recipes you can make."); return; }
+    const Suggestion &s = data.suggestions[0];
+    int w = snprintf(o, n, "You could make %s in about %d minutes. You have %d of the %d ingredients.", s.name, s.minutes, s.have, s.need);
+    if (data.suggestionCount > 1 && w < int(n)) snprintf(o + w, n - w, " Or try %s.", data.suggestions[1].name);
+  } else if (q == 1) {
+    int w = 0, k = 0;
+    for (int i = 0; i < data.kitchenCount && k < 4; ++i) {
+      const KitchenItem &it = data.kitchen[i];
+      if (it.daysLeft > 3) break;
+      char e[16];
+      expiryLabel(e, sizeof e, it.daysLeft);
+      w += snprintf(o + w, n - w, "%s%s (%s)", k ? ", " : "Use these first: ", it.name, e);
+      ++k;
+      if (w >= int(n)) break;
+    }
+    if (!k) snprintf(o, n, data.kitchenLoaded ? "Nothing is about to go off. Nice work!" : "I'm still checking your kitchen.");
+    else if (w < int(n)) snprintf(o + w, n - w, ".");
+  } else if (q == 2) {
+    if (!data.shopCount) { snprintf(o, n, "Your shopping list is empty. Type \"add milk\" on your phone remote to add something."); return; }
+    int w = snprintf(o, n, "You have %d thing%s on your list: ", data.shopCount, data.shopCount == 1 ? "" : "s");
+    for (int i = 0; i < data.shopCount && i < 5 && w < int(n); ++i)
+      w += snprintf(o + w, n - w, "%s%s", i ? ", " : "", data.shop[i].name);
+    if (w < int(n)) snprintf(o + w, n - w, data.shopCount > 5 ? " and more." : ".");
+  } else if (q == 3) {
+    if (!data.plannedCount) { snprintf(o, n, "Nothing is planned for today. Want an idea? Ask me what you can cook."); return; }
+    int w = snprintf(o, n, "Today: ");
+    for (int i = 0; i < data.plannedCount && w < int(n); ++i)
+      w += snprintf(o + w, n - w, "%s%s is %s", i ? ", " : "", MEAL_NAMES[data.planned[i].mealType < 5 ? data.planned[i].mealType : 4], data.planned[i].name);
+    if (w < int(n)) snprintf(o + w, n - w, ".");
+  } else {
+    if (data.kcal < 0 || !data.mealsLogged) { snprintf(o, n, "No meals logged yet today. Tell me when you cook and I'll keep track."); return; }
+    if (data.kcalTarget > 0)
+      snprintf(o, n, "You've had %d of your %d kcal and %d g of protein today.", data.kcal, data.kcalTarget, data.protein);
+    else snprintf(o, n, "You've had %d kcal and %d g of protein today.", data.kcal, data.protein);
+  }
+}
+
+int questionFor(const char *text) {  // typed questions: match a few keywords
+  char low[96];
+  size_t i = 0;
+  for (; text[i] && i + 1 < sizeof low; ++i) low[i] = char(text[i] >= 'A' && text[i] <= 'Z' ? text[i] + 32 : text[i]);
+  low[i] = 0;
+  const char *keys[][6] = {{"cook", "make", "dinner", "lunch", "recipe", "hungry"},
+                           {"expir", "off", "first", "soon", "old", "waste"},
+                           {"list", "buy", "shop", "need", "store", "groceries"},
+                           {"plan", "today", "schedule", "tonight", "week", "planned"},
+                           {"calor", "kcal", "protein", "nutri", "eaten", "doing"}};
+  for (int q = 0; q < QUESTION_COUNT; ++q)
+    for (const char *k : keys[q])
+      if (strstr(low, k)) return q;
+  return -1;
 }
 
 void drawPages(uint32_t now, uint8_t a, int rise) {
@@ -453,9 +738,12 @@ void drawPages(uint32_t now, uint8_t a, int rise) {
     }
     setOrigin(int(roundf(off)), dy);
     if (p == HOME) homePage(pa, now);
-    else if (p == BOUGHT) boughtPage(pa, now);
+    else if (p == TODAY) todayPage(pa, now);
+    else if (p == KITCHEN) kitchenPage(pa, now);
+    else if (p == BOUGHT) { if (page == BOUGHT && mode == Mode::Pick) pickOverlay(pa, now); else boughtPage(pa, now); }
     else if (p == COOK) cookPage(pa, now);
-    else talkPage(pa, now);
+    else if (p == ASK) askPage(pa, now);
+    else connectPage(pa, now);
   }
   setOrigin(0, 0);
 }
@@ -487,6 +775,31 @@ void tickTimers(uint32_t now) {
     if (j == Job::Failed) { setMode(Mode::List); playSfx(Sfx::Error); showToast("Couldn't reach Remi"); }
   }
   if (page == BOUGHT && mode == Mode::Done && now - doneAt > 2000) { setMode(Mode::Top); sel = 0; }
+  if (page == COOK && mode == Mode::Working && data.cooked != Job::Working) {
+    bool ok = data.cooked == Job::Done;
+    setMode(Mode::Top);
+    playSfx(ok ? Sfx::Success : Sfx::Error);
+    showToast(ok ? "Kitchen updated" : "Couldn't log the meal");
+  }
+  if (page == KITCHEN && mode == Mode::Working && data.kitchenAction != Job::Working) {
+    bool ok = data.kitchenAction == Job::Done;
+    setMode(Mode::List);
+    if (sel >= data.kitchenCount) sel = data.kitchenCount ? data.kitchenCount - 1 : 0;
+    playSfx(ok ? Sfx::Check : Sfx::Error);
+    showToast(ok ? "Kitchen updated" : "Couldn't reach Remi");
+    if (!data.kitchenCount) setMode(Mode::Top);
+  }
+  if (page == BOUGHT && mode == Mode::Pick && data.addItem == Job::Done) {
+    data.addItem = Job::Idle;
+    setMode(Mode::Top);
+    playSfx(Sfx::Success);
+    showToast("Added to your list");
+  }
+  if (page == BOUGHT && mode == Mode::Pick && data.addItem == Job::Failed) {
+    data.addItem = Job::Idle;
+    playSfx(Sfx::Error);
+    showToast("Couldn't add it");
+  }
   if (page == COOK && mode == Mode::Recipe && data.recipe == Job::Failed) {
     setMode(Mode::List);
     playSfx(Sfx::Error);
@@ -501,6 +814,20 @@ void drawToast(uint32_t now) {
   int w = textWidth(FONT_SMALL, toast) + 20;
   fillRoundRect(64 - w / 2, 128 + int(6 * (1 - in)), w, 18, 9, INK, a);
   textCentered(FONT_SMALL, 64, 140 + int(6 * (1 - in)), toast, WHITE, a);
+}
+
+void jumpTo(int p, uint32_t now) {  // programmatic page change (remote text, Today -> Cook)
+  page = p;
+  pagePos.retarget(float(p), now, PAGE_SLIDE_MS);
+}
+
+void openRecipe(const char *id, uint32_t now) {
+  lockData();
+  snprintf(data.recipeId, sizeof data.recipeId, "%s", id);
+  unlockData();
+  jumpTo(COOK, now);
+  setMode(Mode::Recipe);
+  backendRequest(Request::LoadRecipe);
 }
 
 void goPage(int p, uint32_t now) {
@@ -524,6 +851,30 @@ void begin() {
 
 bool inIntro() { return intro; }
 void toggleColorTest() { colorTest = !colorTest; }
+
+void textInput(TextKind kind, const char *text) {
+  uint32_t now = nowMs();
+  if (intro) bootMs = now - (UI_APPEAR_AT + UI_APPEAR_MS);
+  if (kind == TextKind::Add) {
+    lockData();
+    snprintf(data.pickQuery, sizeof data.pickQuery, "%s", text);
+    data.pickCount = 0;
+    data.search = Job::Working;
+    unlockData();
+    backendRequest(Request::SearchFoods);
+    jumpTo(BOUGHT, now);
+    setMode(Mode::Pick);
+    sel = 0; selY = scrollY = 0;
+  } else {
+    int q = questionFor(text);
+    if (q < 0) snprintf(answer, sizeof answer, "I can tell you what to cook, what to use first, what's on your list, today's plan and how you're doing. Ask me one of those!");
+    else answerQuestion(q);
+    jumpTo(ASK, now);
+    setMode(Mode::Answer);
+    speakUntil = now + 2400;
+  }
+  playSfx(Sfx::Voice);
+}
 void notify(const char *msg) {
   showToast(msg);
   toastStart = nowMs() + 6500;  // after the boot
@@ -554,10 +905,74 @@ void input(Input in) {
       if (data.suggestionCount > 0) { setMode(Mode::List); sel = 0; selY = scrollY = 0; playSfx(Sfx::Select); }
       else playSfx(Sfx::Edge);
     }
-    if (page == TALK) {
-      talkLine = (now < speakUntil) ? (talkLine + 1) % 3 : talkLine;
-      speakUntil = now + 2400;
-      playSfx(Sfx::Voice);
+    if (page == TODAY) {
+      if (data.plannedCount == 1) { openRecipe(data.planned[0].recipeId, now); playSfx(Sfx::Select); }
+      else if (data.plannedCount > 1) { setMode(Mode::List); sel = 0; selY = scrollY = 0; playSfx(Sfx::Select); }
+      else playSfx(Sfx::Edge);
+    }
+    if (page == KITCHEN) {
+      if (data.kitchenCount > 0) { setMode(Mode::List); sel = 0; selY = scrollY = 0; playSfx(Sfx::Select); }
+      else playSfx(Sfx::Edge);
+    }
+    if (page == ASK) { setMode(Mode::List); sel = 0; selY = scrollY = 0; playSfx(Sfx::Select); }
+    if (page == CONNECT) playSfx(Sfx::Edge);
+    return;
+  }
+
+  // Generic list movement for the simple lists.
+  auto move = [&](int count) {
+    int n = sel + dir;
+    if (n < 0 || n >= count) playSfx(Sfx::Edge);
+    else { sel = n; playSfx(Sfx::Tick); }
+  };
+
+  if (page == TODAY && mode == Mode::List) {
+    if (dir) move(data.plannedCount);
+    else if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+    else { openRecipe(data.planned[sel].recipeId, now); playSfx(Sfx::Select); }
+    return;
+  }
+
+  if (page == KITCHEN) {
+    if (mode == Mode::List) {
+      if (dir) move(data.kitchenCount);
+      else if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+      else { setMode(Mode::Sheet); sheetSel = 0; playSfx(Sfx::Select); }
+    } else if (mode == Mode::Sheet) {
+      if (dir) {
+        int n = sheetSel + dir;
+        if (n < 0 || n > 2) playSfx(Sfx::Edge);
+        else { sheetSel = n; playSfx(Sfx::Tick); }
+      } else if (in == Input::LongPress || sheetSel == 2) { setMode(Mode::List); playSfx(Sfx::Back); }
+      else {
+        lockData(); data.kitchenAction = Job::Working; unlockData();
+        backendRequest(sheetSel == 0 ? Request::KitchenUse : Request::KitchenToss, sel);
+        setMode(Mode::Working);
+        playSfx(Sfx::Select);
+      }
+    }
+    return;
+  }
+
+  if (page == ASK) {
+    if (mode == Mode::List) {
+      if (dir) move(QUESTION_COUNT);
+      else if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+      else { answerQuestion(sel); setMode(Mode::Answer); speakUntil = now + 2400; playSfx(Sfx::Voice); }
+    } else if (mode == Mode::Answer) {
+      if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+      else { setMode(Mode::List); playSfx(Sfx::Select); }
+    }
+    return;
+  }
+
+  if (page == BOUGHT && mode == Mode::Pick) {
+    if (dir) move(data.pickCount);
+    else if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+    else if (data.pickCount && data.addItem != Job::Working) {
+      lockData(); data.addItem = Job::Working; unlockData();
+      backendRequest(Request::AddToList, sel);
+      playSfx(Sfx::Select);
     }
     return;
   }
@@ -601,8 +1016,7 @@ void input(Input in) {
         setMode(Mode::Top);
         playSfx(Sfx::Back);
       } else {
-        setMode(Mode::Recipe);
-        backendRequest(Request::LoadRecipe, sel);
+        openRecipe(data.suggestions[sel].id, now);
         playSfx(Sfx::Select);
       }
     } else if (mode == Mode::Recipe) {
@@ -636,8 +1050,13 @@ void input(Input in) {
           playSfx(Sfx::TimerStart);
         } else playSfx(Sfx::Edge);
       }
-    } else if (mode == Mode::Finished && !dir) {
+    } else if (mode == Mode::Finished && in == Input::LongPress) {
       setMode(Mode::Top);
+      playSfx(Sfx::Back);
+    } else if (mode == Mode::Finished && in == Input::Press) {
+      lockData(); data.cooked = Job::Working; unlockData();
+      backendRequest(Request::CookedIt);
+      setMode(Mode::Working);
       playSfx(Sfx::Select);
     }
   }
