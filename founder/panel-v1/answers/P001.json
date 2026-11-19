@@ -1,0 +1,13 @@
+{
+  "id": "P001",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from a cooking video on the day, and the kitchen is run by my helper and my routine, not an app. Scanning receipts and planning a week is not how we cook.",
+  "objection": "Nobody in my house would actually keep the app updated. My helper does the shopping and the kitchen, so I would be paying for something that sits unused.",
+  "would_change_my_mind": "If it linked straight to the cooking videos I already watch and my helper could use it easily in Arabic without any setup.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 6,
+  "price_too_expensive": 10
+}

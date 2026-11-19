@@ -1,0 +1,13 @@
+{
+  "id": "P016",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "Our helper does a lot of the cooking and the shopping list already lives in the family WhatsApp group. Nobody in the house is going to scan receipts or open an app to plan meals, so I would be paying for something that sits unused.",
+  "objection": "My helper manages the kitchen, not an app. I would be the only one using it, and the list already works fine on WhatsApp.",
+  "would_change_my_mind": "If the free version let my helper and my wife add to the list and see what is in the kitchen with no setup, and it worked in Arabic over WhatsApp, I might try Plus after a few weeks.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 5,
+  "price_too_expensive": 9
+}

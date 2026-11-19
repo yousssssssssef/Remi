@@ -1,0 +1,13 @@
+{
+  "id": "P008",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I do one big shop a week with a list in my head, and I am not going to start photographing receipts and checking an app every time I cook. The free version is fine to look at, but paying for it is not something I would do.",
+  "objection": "I won't keep logging every item I buy and use. Snapping receipts every week is one more chore, and I already know what is in my fridge.",
+  "would_change_my_mind": "If it worked with almost no effort, for example the receipt scan adding everything correctly in Arabic every time and my husband or the helper using the shared list without me chasing them, I might keep using the free version. I would still not pay.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1,
+  "price_expensive": 2.5,
+  "price_too_expensive": 4
+}

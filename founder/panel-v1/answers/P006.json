@@ -1,0 +1,13 @@
+{
+  "id": "P006",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "My helper does a lot of the cooking and she's not going to scan receipts or use an app in the kitchen. I already track calories in MyFitnessPal, so the nutrition part isn't new to me, and I'd stay on the free version at most.",
+  "objection": "Who actually uses it? My helper manages the kitchen, not me, and I'm not going to scan receipts every shopping trip when someone else does the shopping and cooking.",
+  "would_change_my_mind": "If it counted calories and protein for the meals my helper cooks, with the dishes in Arabic and local food, and my helper could use it easily in Arabic without me doing the scanning.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 5,
+  "price_too_expensive": 9
+}

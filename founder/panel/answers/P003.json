@@ -1,0 +1,13 @@
+{
+  "id": "P003",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I do one big hypermarket shop a week with a list in my head, and I have no habit of scanning receipts. The free tier would be enough if I tried it at all, so I would not pay for Plus.",
+  "objection": "Scanning every receipt is extra work, and I do not believe it will read my Arabic hypermarket receipts correctly. I also doubt the recipes will be what we really cook, even though it says half are Arab.",
+  "would_change_my_mind": "Seeing it read a real Carrefour or Lulu Arabic receipt correctly, plus a Ramadan or iftar meal planner with dishes we actually cook.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 4,
+  "price_too_expensive": 7
+}

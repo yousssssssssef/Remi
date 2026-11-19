@@ -1,0 +1,13 @@
+{
+  "id": "P008",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I do one big shop a week with a mental list and I'm not going to scan receipts and log every item I buy and use. The free version might sit on my phone, but paying $4 a month for something that needs that much effort, no.",
+  "objection": "I won't keep logging every item I buy and use. If I have to feed it every week it will be dead in two weeks and I'll be paying for nothing.",
+  "would_change_my_mind": "If the receipt scan truly did everything on its own, including Arabic receipts from Carrefour, and a free month showed it saved me real food waste without me touching anything else.",
+  "price_too_cheap": 1,
+  "price_cheap": 1.5,
+  "price_expensive": 3,
+  "price_too_expensive": 4
+}

@@ -1,0 +1,75 @@
+{
+  "business": "Remi Plus (household subscription, app only; device excluded until it has a unit cost)",
+  "unit": "paying household-month",
+  "price": 2.99,
+  "variable": [
+    {
+      "label": "App Store / Google Play fee (15%)",
+      "cost": 0.45
+    },
+    {
+      "label": "AI calls for Ask Remi and label/receipt fallback (estimate)",
+      "cost": 0.2
+    },
+    {
+      "label": "Hosting, storage and push per active household (estimate)",
+      "cost": 0.15
+    }
+  ],
+  "fixed_monthly": [
+    {
+      "label": "Base cloud: API server, Postgres, object storage, email (estimate)",
+      "cost": 60
+    },
+    {
+      "label": "Free-tier users' hosting and AI (estimate)",
+      "cost": 30
+    },
+    {
+      "label": "Apple Developer Program ($99 a year)",
+      "cost": 8.25
+    },
+    {
+      "label": "Domain, transactional email, misc tools (estimate)",
+      "cost": 10
+    },
+    {
+      "label": "Founder salaries (student team, unpaid in year 1)",
+      "cost": 0
+    }
+  ],
+  "startup": [
+    {
+      "label": "Apple Developer Program, first year",
+      "cost": 99
+    },
+    {
+      "label": "Google Play developer account (one-time)",
+      "cost": 25
+    },
+    {
+      "label": "Founding-household test: landing page and small ad test (estimate)",
+      "cost": 200
+    },
+    {
+      "label": "Nutrition, allergen and recipe expert review (estimate, open quote)",
+      "cost": 300
+    }
+  ],
+  "days_per_month": 1,
+  "plan_per_day": 200,
+  "ramp_per_day": [
+    5,
+    10,
+    20,
+    30,
+    45,
+    60,
+    80,
+    100,
+    120,
+    140,
+    160,
+    180
+  ]
+}

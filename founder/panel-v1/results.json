@@ -1,0 +1,161 @@
+{
+ "business": "Remi, an Arabic/English kitchen app (pantry tracking, receipt scanning, meal planning, shopping list) with an optional countertop device",
+ "seed": 544233,
+ "dealt": 20,
+ "answered": 20,
+ "skipped": [],
+ "buys": 0,
+ "passes": 20,
+ "buy_rate": 0.0,
+ "by_segment": [
+  [
+   "Gulf family household",
+   7,
+   0.0
+  ],
+  [
+   "Gulf expat Arab professional",
+   4,
+   0.0
+  ],
+  [
+   "North Africa urban middle class",
+   7,
+   0.0
+  ],
+  [
+   "North Africa young couple / student-age household",
+   2,
+   0.0
+  ]
+ ],
+ "by_behaviour": [
+  [
+   "Recipe-video cook",
+   3,
+   0.0
+  ],
+  [
+   "Weekly big shop",
+   4,
+   0.0
+  ],
+  [
+   "Budget-conscious",
+   3,
+   0.0
+  ],
+  [
+   "Health and diet tracker",
+   2,
+   0.0
+  ],
+  [
+   "Delivery-app regular",
+   4,
+   0.0
+  ],
+  [
+   "Family WhatsApp list",
+   2,
+   0.0
+  ],
+  [
+   "Gadget early adopter",
+   2,
+   0.0
+  ]
+ ],
+ "by_income": [
+  [
+   "$45,000 and up",
+   7,
+   0.0
+  ],
+  [
+   "under $16,000",
+   6,
+   0.0
+  ],
+  [
+   "$16,000 to $45,000",
+   7,
+   0.0
+  ]
+ ],
+ "why_not": [
+  [
+   "habit",
+   11,
+   [
+    "I pick dinner from a cooking video on the day, and the kitchen is run by my helper and my routine, not an app. Scanning receipts and planning a week is not how we cook.",
+    "I pick dinner from a TikTok video that day and my husband and I already double-buy stuff, so I know I wouldn't keep a digital kitchen up to date. The free version is fine to try, but I wouldn't pay for scanning receipts I'd forget to scan."
+   ],
+   [
+    "P001",
+    "P002"
+   ]
+  ],
+  [
+   "trust",
+   4,
+   [
+    "I'd maybe download the free version, but paying for it, no. I don't want to hand my family's receipts and data to an app, and on $6,000 a year even $4 a month is something I'd skip when I already order from Talabat and don't plan.",
+    "I do one big shop a week and keep the list in my head, it works fine. I would not hand my family's receipts and data to an app I have never heard of, and I would not pay monthly for something I can do myself."
+   ],
+   [
+    "P007",
+    "P009"
+   ]
+  ],
+  [
+   "need",
+   3,
+   [
+    "I do one big hypermarket shop a week and keep the list in my head, so I don't really have a problem scanning receipts would fix. I'd download the free version to look, but I wouldn't pay.",
+    "Our shopping list is already a WhatsApp group and the helper does a lot of the cooking, so I would not be the one snapping receipts. Free tier might get a look, but I would not pay for Plus."
+   ],
+   [
+    "P003",
+    "P011"
+   ]
+  ],
+  [
+   "price",
+   2,
+   [
+    "I'd install the free version and try it, since I do bin vegetables every week. But paying $3.99 a month on about $7,000 a year for scanning and a planner? I'd stay on free and the $79 device is out of the question.",
+    "I would try the free part, but I would not pay every month. Throwing out vegetables hurts, but $3.99 a month is about $48 a year and I can write a list and check the fridge myself for free."
+   ],
+   [
+    "P014",
+    "P019"
+   ]
+  ]
+ ],
+ "why_yes": [],
+ "flip": [
+  "If it linked straight to the cooking videos I already watch and my helper could use it easily in Arabic without any setup.",
+  "If my husband and I shared one list that updated automatically when either of us scanned a receipt, and it worked on the first try with Arabic receipts without any manual fixing, I'd pay for a year.",
+  "Seeing that the recipes are mostly Gulf and Arab home cooking, with a Ramadan mode for iftar and suhoor planning, and that the free version already works well for my household.",
+  "If the free version were enough to catch what's about to expire, or if Plus were a one-time payment of a few dollars with no recurring charge.",
+  "If it let me save a recipe straight from an Instagram or TikTok video and showed me what I'm missing from what I already have, and the paid part stayed free for a good trial.",
+  "If it counted calories and protein for the meals my helper cooks, with the dishes in Arabic and local food, and my helper could use it easily in Arabic without me doing the scanning.",
+  "Clear proof that my data stays private and isn't sold, plus receipt scanning that works with my Talabat or Noon orders automatically, so I don't have to do anything.",
+  "If the receipt scan truly did everything on its own, including Arabic receipts from Carrefour, and a free month showed it saved me real food waste without me touching anything else.",
+  "A clear promise in Arabic that my receipts and household data stay private, plus the free version proving useful for a few weeks before I ever pay.",
+  "If nutrition and calorie tracking worked well on its own with Arabic dishes, was free or cheap, and the household could add the groceries without scanning receipts.",
+  "Seeing that the recipes are mostly Gulf and Arabic dishes, and that my wife and the helper can both use the shared list in Arabic as easily as WhatsApp.",
+  "Seeing it read a real Arabic receipt or a Talabat/Noon order correctly, or a free trial of Plus where I can test it on my own groceries.",
+  "Proof that receipt scanning is truly one tap and accurate in Arabic on Gulf supermarket receipts, and that my helper can use it in her own language without me.",
+  "A free trial that shows scanning works on my own local receipts, and a much lower local price, around 1 USD a month.",
+  "Proof that the recipes are mostly Gulf and Levantine dishes we actually cook, plus Ramadan meal planning and an easy way to import my Talabat orders instead of scanning receipts.",
+  "If the free version let my helper and my wife add to the list and see what is in the kitchen with no setup, and it worked in Arabic over WhatsApp, I might try Plus after a few weeks.",
+  "If the free version let me share the list with my spouse and scan receipts a few times a month, and I saw it actually stop us buying duplicates, I might pay for the year.",
+  "If it connected straight to my Talabat/Noon/Breadfast orders so the kitchen fills itself with no receipt scanning, and my helper could use it in Arabic.",
+  "A free month of Remi Plus with no card needed, so I could see whether it really stops me wasting vegetables, or a one-time price instead of a subscription.",
+  "A free trial or a clear demo showing it correctly reading a real Arabic or mixed Arabic/English Gulf supermarket receipt, plus a refund if it fails on mine."
+ ],
+ "purchases_first_month_per_buyer": null,
+ "price_answers": 20
+}

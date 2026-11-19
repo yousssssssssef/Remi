@@ -1,0 +1,13 @@
+{
+  "id": "P002",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from a TikTok video that day and my husband and I already double-buy stuff, so I know I wouldn't keep a digital kitchen up to date. The free version is fine to try, but I wouldn't pay for scanning receipts I'd forget to scan.",
+  "objection": "I won't keep logging every item I buy and use. If it isn't current it's useless, and I'd stop after two weeks.",
+  "would_change_my_mind": "If my husband and I shared one list that updated automatically when either of us scanned a receipt, and it worked on the first try with Arabic receipts without any manual fixing, I'd pay for a year.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 5,
+  "price_too_expensive": 9
+}

@@ -1,0 +1,13 @@
+{
+  "id": "P019",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "price",
+  "reason": "I would try the free part, but I would not pay every month. Throwing out vegetables hurts, but $3.99 a month is about $48 a year and I can write a list and check the fridge myself for free.",
+  "objection": "Another subscription for things I can already do. The part that saves me money, scanning receipts, is locked behind the paid plan, so I pay before I know it works.",
+  "would_change_my_mind": "A free month of Remi Plus with no card needed, so I could see whether it really stops me wasting vegetables, or a one-time price instead of a subscription.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3,
+  "price_too_expensive": 4
+}

@@ -1,0 +1,13 @@
+{
+  "id": "P012",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "trust",
+  "reason": "I'd probably download the free version and poke around, but I wouldn't pay. I order from Talabat and Breadfast with no plan, and the receipts and order screens are in Arabic, so I don't believe the scanning would work for me.",
+  "objection": "Receipt scanning never reads Arabic receipts properly, and that's the main reason to pay for Plus. If it fails I've paid for nothing and I'm still typing everything in by hand.",
+  "would_change_my_mind": "Seeing it read a real Arabic receipt or a Talabat/Noon order correctly, or a free trial of Plus where I can test it on my own groceries.",
+  "price_too_cheap": 0.99,
+  "price_cheap": 1.5,
+  "price_expensive": 3,
+  "price_too_expensive": 4.5
+}

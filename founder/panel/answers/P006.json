@@ -1,0 +1,13 @@
+{
+  "id": "P006",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "My helper does a lot of the cooking and shops with her own habits, so I'm not going to be scanning receipts. I already track calories in another app and I don't want a second one to maintain.",
+  "objection": "My helper manages the kitchen, not an app. Getting her to scan receipts and use a shared list is more work than it saves, and nutrition is behind the paid plan anyway.",
+  "would_change_my_mind": "Nutrition and protein tracking for the recipes free, and proof that a helper can use it easily in Arabic without me managing it.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3,
+  "price_too_expensive": 5
+}

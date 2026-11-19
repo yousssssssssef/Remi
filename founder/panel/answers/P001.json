@@ -1,0 +1,13 @@
+{
+  "id": "P001",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from a cooking video the same day, and in our house my helper runs the kitchen and the shopping, not an app. I would not scan receipts every week, and the free version already covers anything I might try.",
+  "objection": "Nobody in my house would actually use it. My helper does the shopping, and I am not going to photograph receipts or keep a list updated when I just follow a video that evening.",
+  "would_change_my_mind": "If my helper tried it and it saved her real time, for example by reading the receipts and reminding her in Arabic with no effort from either of us, I would pay for Plus.",
+  "price_too_cheap": 0.99,
+  "price_cheap": 1.99,
+  "price_expensive": 5,
+  "price_too_expensive": 9.99
+}

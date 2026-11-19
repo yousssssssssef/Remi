@@ -1,0 +1,103 @@
+{
+ "n": 20,
+ "seed": 544233,
+ "customer": {
+  "business": "Remi, an Arabic/English kitchen app (pantry tracking, receipt scanning, meal planning, shopping list) with an optional countertop device",
+  "target": "Arabic-speaking adults, 25 to 45, who run the kitchen and grocery shopping for a household of 3+ in the Gulf or North Africa",
+  "where": "MENA: Gulf (UAE, Saudi Arabia, Kuwait, Qatar) and North Africa (Egypt, Morocco, Tunisia); online, app stores",
+  "age": [
+   25,
+   45
+  ],
+  "segments": [
+   {
+    "name": "Gulf family household",
+    "share": 0.35,
+    "income": [
+     36000,
+     120000
+    ]
+   },
+   {
+    "name": "Gulf expat Arab professional",
+    "share": 0.2,
+    "income": [
+     30000,
+     90000
+    ]
+   },
+   {
+    "name": "North Africa urban middle class",
+    "share": 0.35,
+    "income": [
+     6000,
+     20000
+    ]
+   },
+   {
+    "name": "North Africa young couple / student-age household",
+    "share": 0.1,
+    "income": [
+     3000,
+     9000
+    ]
+   }
+  ],
+  "behaviours": [
+   {
+    "name": "Weekly big shop",
+    "share": 0.22,
+    "how": "Does one large hypermarket shop a week (Carrefour, Lulu, Hyper One) and keeps a mental list."
+   },
+   {
+    "name": "Delivery-app regular",
+    "share": 0.18,
+    "how": "Orders groceries on Talabat, Noon or Breadfast several times a week, rarely plans ahead."
+   },
+   {
+    "name": "Recipe-video cook",
+    "share": 0.16,
+    "how": "Picks dinners from Instagram, TikTok or YouTube cooking videos on the day."
+   },
+   {
+    "name": "Health and diet tracker",
+    "share": 0.12,
+    "how": "Counts calories or protein, has tried MyFitnessPal or a diet plan."
+   },
+   {
+    "name": "Budget-conscious",
+    "share": 0.14,
+    "how": "Watches every price, hates subscriptions, compares offers."
+   },
+   {
+    "name": "Family WhatsApp list",
+    "share": 0.1,
+    "how": "The household shares the shopping list in a WhatsApp group; a helper or spouse does some of the shopping."
+   },
+   {
+    "name": "Gadget early adopter",
+    "share": 0.08,
+    "how": "Owns smart-home devices, buys new tech early, reads reviews."
+   }
+  ],
+  "objections": [
+   "I won't keep logging every item I buy and use",
+   "Another subscription? Most of these apps are free",
+   "My mother / my helper manages the kitchen, not an app",
+   "WhatsApp and my memory already work fine",
+   "Receipt scanning never reads Arabic receipts properly",
+   "Why would I need a separate device on the counter when I have my phone?",
+   "I don't trust an app with my family's data",
+   "Recipes in these apps are Western, not what we cook"
+  ],
+  "habits": [
+   "you cook dinner for the family most nights",
+   "you throw away vegetables at least once a week because they went off",
+   "Ramadan changes how your household shops and cooks for a month",
+   "you already pay for one or two app subscriptions (streaming, music)",
+   "a domestic helper does part of the cooking",
+   "you split shopping with your spouse and often buy duplicates"
+  ]
+ },
+ "pitch": "Remi, a kitchen app in Arabic and English for iPhone and Android.\nSnap your grocery receipt and Remi puts the food into your digital kitchen, shows what expires first, and suggests recipes (400, with photos) from what you already have.\nPlan the week's meals, share one shopping list with your household, cook step by step with timers, and see calories and protein per meal.\nFree: kitchen, list and recipes. Remi Plus (receipt scanning, meal planner, nutrition, Ask Remi AI assistant, whole household): $3.99 a month or $29.99 a year (local prices in AED, SAR, EGP).\nOptional: the Remi countertop device, a small screen with a knob and speaker that shows what to use first and guides cooking, $79 one-time, works with Remi Plus."
+}

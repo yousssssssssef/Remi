@@ -1,0 +1,222 @@
+[
+ {
+  "id": "P001",
+  "name": "Jade",
+  "age": 45,
+  "segment": "Gulf family household",
+  "income": 113000,
+  "behaviour": "Recipe-video cook",
+  "behaviour_how": "Picks dinners from Instagram, TikTok or YouTube cooking videos on the day.",
+  "objection": "My mother / my helper manages the kitchen, not an app",
+  "habit": "you cook dinner for the family most nights"
+ },
+ {
+  "id": "P002",
+  "name": "Rosa",
+  "age": 27,
+  "segment": "Gulf expat Arab professional",
+  "income": 63000,
+  "behaviour": "Recipe-video cook",
+  "behaviour_how": "Picks dinners from Instagram, TikTok or YouTube cooking videos on the day.",
+  "objection": "I won't keep logging every item I buy and use",
+  "habit": "you split shopping with your spouse and often buy duplicates"
+ },
+ {
+  "id": "P003",
+  "name": "Olivia",
+  "age": 25,
+  "segment": "Gulf family household",
+  "income": 117000,
+  "behaviour": "Weekly big shop",
+  "behaviour_how": "Does one large hypermarket shop a week (Carrefour, Lulu, Hyper One) and keeps a mental list.",
+  "objection": "Recipes in these apps are Western, not what we cook",
+  "habit": "Ramadan changes how your household shops and cooks for a month"
+ },
+ {
+  "id": "P004",
+  "name": "Ana",
+  "age": 41,
+  "segment": "Gulf expat Arab professional",
+  "income": 45000,
+  "behaviour": "Budget-conscious",
+  "behaviour_how": "Watches every price, hates subscriptions, compares offers.",
+  "objection": "WhatsApp and my memory already work fine",
+  "habit": "you throw away vegetables at least once a week because they went off"
+ },
+ {
+  "id": "P005",
+  "name": "Sana",
+  "age": 26,
+  "segment": "Gulf family household",
+  "income": 54000,
+  "behaviour": "Recipe-video cook",
+  "behaviour_how": "Picks dinners from Instagram, TikTok or YouTube cooking videos on the day.",
+  "objection": "Why would I need a separate device on the counter when I have my phone?",
+  "habit": "you already pay for one or two app subscriptions (streaming, music)"
+ },
+ {
+  "id": "P006",
+  "name": "June",
+  "age": 31,
+  "segment": "North Africa urban middle class",
+  "income": 8000,
+  "behaviour": "Health and diet tracker",
+  "behaviour_how": "Counts calories or protein, has tried MyFitnessPal or a diet plan.",
+  "objection": "My mother / my helper manages the kitchen, not an app",
+  "habit": "a domestic helper does part of the cooking"
+ },
+ {
+  "id": "P007",
+  "name": "Mateo",
+  "age": 31,
+  "segment": "North Africa young couple / student-age household",
+  "income": 6000,
+  "behaviour": "Delivery-app regular",
+  "behaviour_how": "Orders groceries on Talabat, Noon or Breadfast several times a week, rarely plans ahead.",
+  "objection": "I don't trust an app with my family's data",
+  "habit": "you throw away vegetables at least once a week because they went off"
+ },
+ {
+  "id": "P008",
+  "name": "Chloe",
+  "age": 30,
+  "segment": "North Africa urban middle class",
+  "income": 6000,
+  "behaviour": "Weekly big shop",
+  "behaviour_how": "Does one large hypermarket shop a week (Carrefour, Lulu, Hyper One) and keeps a mental list.",
+  "objection": "I won't keep logging every item I buy and use",
+  "habit": "you already pay for one or two app subscriptions (streaming, music)"
+ },
+ {
+  "id": "P009",
+  "name": "Ada",
+  "age": 29,
+  "segment": "North Africa urban middle class",
+  "income": 16000,
+  "behaviour": "Weekly big shop",
+  "behaviour_how": "Does one large hypermarket shop a week (Carrefour, Lulu, Hyper One) and keeps a mental list.",
+  "objection": "I don't trust an app with my family's data",
+  "habit": "you cook dinner for the family most nights"
+ },
+ {
+  "id": "P010",
+  "name": "Jasper",
+  "age": 33,
+  "segment": "North Africa urban middle class",
+  "income": 19000,
+  "behaviour": "Health and diet tracker",
+  "behaviour_how": "Counts calories or protein, has tried MyFitnessPal or a diet plan.",
+  "objection": "My mother / my helper manages the kitchen, not an app",
+  "habit": "Ramadan changes how your household shops and cooks for a month"
+ },
+ {
+  "id": "P011",
+  "name": "Omar",
+  "age": 29,
+  "segment": "Gulf family household",
+  "income": 113000,
+  "behaviour": "Family WhatsApp list",
+  "behaviour_how": "The household shares the shopping list in a WhatsApp group; a helper or spouse does some of the shopping.",
+  "objection": "Recipes in these apps are Western, not what we cook",
+  "habit": "a domestic helper does part of the cooking"
+ },
+ {
+  "id": "P012",
+  "name": "Kira",
+  "age": 42,
+  "segment": "North Africa young couple / student-age household",
+  "income": 8000,
+  "behaviour": "Delivery-app regular",
+  "behaviour_how": "Orders groceries on Talabat, Noon or Breadfast several times a week, rarely plans ahead.",
+  "objection": "Receipt scanning never reads Arabic receipts properly",
+  "habit": "you throw away vegetables at least once a week because they went off"
+ },
+ {
+  "id": "P013",
+  "name": "Leah",
+  "age": 39,
+  "segment": "Gulf family household",
+  "income": 50000,
+  "behaviour": "Gadget early adopter",
+  "behaviour_how": "Owns smart-home devices, buys new tech early, reads reviews.",
+  "objection": "I won't keep logging every item I buy and use",
+  "habit": "a domestic helper does part of the cooking"
+ },
+ {
+  "id": "P014",
+  "name": "Marcus",
+  "age": 30,
+  "segment": "North Africa urban middle class",
+  "income": 7000,
+  "behaviour": "Gadget early adopter",
+  "behaviour_how": "Owns smart-home devices, buys new tech early, reads reviews.",
+  "objection": "Another subscription? Most of these apps are free",
+  "habit": "you throw away vegetables at least once a week because they went off"
+ },
+ {
+  "id": "P015",
+  "name": "Beatriz",
+  "age": 31,
+  "segment": "Gulf expat Arab professional",
+  "income": 36000,
+  "behaviour": "Delivery-app regular",
+  "behaviour_how": "Orders groceries on Talabat, Noon or Breadfast several times a week, rarely plans ahead.",
+  "objection": "Recipes in these apps are Western, not what we cook",
+  "habit": "Ramadan changes how your household shops and cooks for a month"
+ },
+ {
+  "id": "P016",
+  "name": "Sol",
+  "age": 45,
+  "segment": "Gulf expat Arab professional",
+  "income": 37000,
+  "behaviour": "Family WhatsApp list",
+  "behaviour_how": "The household shares the shopping list in a WhatsApp group; a helper or spouse does some of the shopping.",
+  "objection": "My mother / my helper manages the kitchen, not an app",
+  "habit": "a domestic helper does part of the cooking"
+ },
+ {
+  "id": "P017",
+  "name": "Nora",
+  "age": 25,
+  "segment": "North Africa urban middle class",
+  "income": 17000,
+  "behaviour": "Weekly big shop",
+  "behaviour_how": "Does one large hypermarket shop a week (Carrefour, Lulu, Hyper One) and keeps a mental list.",
+  "objection": "Another subscription? Most of these apps are free",
+  "habit": "you split shopping with your spouse and often buy duplicates"
+ },
+ {
+  "id": "P018",
+  "name": "Daniel",
+  "age": 27,
+  "segment": "North Africa urban middle class",
+  "income": 12000,
+  "behaviour": "Delivery-app regular",
+  "behaviour_how": "Orders groceries on Talabat, Noon or Breadfast several times a week, rarely plans ahead.",
+  "objection": "My mother / my helper manages the kitchen, not an app",
+  "habit": "a domestic helper does part of the cooking"
+ },
+ {
+  "id": "P019",
+  "name": "Maya",
+  "age": 45,
+  "segment": "Gulf family household",
+  "income": 40000,
+  "behaviour": "Budget-conscious",
+  "behaviour_how": "Watches every price, hates subscriptions, compares offers.",
+  "objection": "Another subscription? Most of these apps are free",
+  "habit": "you throw away vegetables at least once a week because they went off"
+ },
+ {
+  "id": "P020",
+  "name": "Amara",
+  "age": 29,
+  "segment": "Gulf family household",
+  "income": 38000,
+  "behaviour": "Budget-conscious",
+  "behaviour_how": "Watches every price, hates subscriptions, compares offers.",
+  "objection": "Receipt scanning never reads Arabic receipts properly",
+  "habit": "a domestic helper does part of the cooking"
+ }
+]

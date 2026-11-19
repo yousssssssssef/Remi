@@ -1,0 +1,13 @@
+{
+  "id": "P004",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I'd maybe look at the free version, but I wouldn't pay. WhatsApp and my own memory already work fine, and I hate subscriptions.",
+  "objection": "I already throw away a bit of food, but I don't believe scanning receipts every shop is something I'll keep doing. Another app to open means another habit, and I'd pay for it by the month.",
+  "would_change_my_mind": "If the free version alone really saved me food waste, I'd keep using it. Paying only if it were a one-time price, not a subscription.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1,
+  "price_expensive": 2.5,
+  "price_too_expensive": 4
+}

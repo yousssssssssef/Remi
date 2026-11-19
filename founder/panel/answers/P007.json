@@ -1,0 +1,13 @@
+{
+  "id": "P007",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "trust",
+  "reason": "I might try the free version, but I would not pay. I do throw out vegetables every week, but scanning receipts means handing over my family's shopping and data to an app, and I have no reason to believe the promise.",
+  "objection": "I don't trust an app with my family's data. Anyone can write 'never sold' and I can't check it. And I order on Talabat and Noon, so I'm not even holding supermarket receipts half the time.",
+  "would_change_my_mind": "If my delivery-app orders came in on their own without me scanning anything, and the free version kept working for months with no card and nothing odd asked of me.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1,
+  "price_expensive": 2.5,
+  "price_too_expensive": 4
+}

@@ -1,0 +1,13 @@
+{
+  "id": "P013",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I'd try the free version for a week, but I won't keep scanning receipts and logging what I buy and use. Our helper does a lot of the cooking, so I'm not the one in the kitchen planning meals, and I don't see her using an app either.",
+  "objection": "I won't keep logging every item I buy and use. If it only works when I feed it receipts, it'll be empty and wrong within two weeks, and my helper won't maintain it.",
+  "would_change_my_mind": "Proof that receipt scanning is truly one tap and accurate in Arabic on Gulf supermarket receipts, and that my helper can use it in her own language without me.",
+  "price_too_cheap": 1.5,
+  "price_cheap": 2.5,
+  "price_expensive": 5,
+  "price_too_expensive": 8
+}

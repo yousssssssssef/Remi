@@ -1,0 +1,13 @@
+{
+  "id": "P017",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I do one big hypermarket shop a week with my spouse and keep a list in my head, so scanning receipts every time sounds like extra work. The free part is fine to try, but I would not pay for another subscription when most apps are free.",
+  "objection": "Another subscription? Most of these apps are free, and my husband and I already buy duplicates; I doubt scanning receipts would fix that enough to pay monthly.",
+  "would_change_my_mind": "If the free version let me share the list with my spouse and scan receipts a few times a month, and I saw it actually stop us buying duplicates, I might pay for the year.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 4,
+  "price_too_expensive": 6
+}

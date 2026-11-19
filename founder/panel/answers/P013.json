@@ -1,0 +1,13 @@
+{
+  "id": "P013",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I like gadgets and might install the free version to see how the receipt scan handles Arabic. But I won't keep logging every item I buy and use, and my helper does a lot of the cooking, so I would not pay for Plus.",
+  "objection": "Receipt scanning only works if I actually snap every receipt, and I know I will stop after a couple of weeks. A kitchen inventory that is out of date is useless. I also doubt my helper will keep using it.",
+  "would_change_my_mind": "Seeing in reviews that the Arabic receipt scan is accurate and that my helper can use it with almost no effort, so the kitchen stays up to date without me doing it.",
+  "price_too_cheap": 0.99,
+  "price_cheap": 1.99,
+  "price_expensive": 3.99,
+  "price_too_expensive": 6.99
+}

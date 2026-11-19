@@ -1,0 +1,13 @@
+{
+  "id": "P005",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from a video on the day and cook it, so I'm not going to scan receipts or plan a week. The free app I might try once, but I wouldn't pay for Plus.",
+  "objection": "Why would I need a separate device on the counter when I have my phone? And I already pay for streaming and music, I don't want another subscription for something I don't do.",
+  "would_change_my_mind": "If it let me save a recipe straight from an Instagram or TikTok video and showed me what I'm missing from what I already have, and the paid part stayed free for a good trial.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 4,
+  "price_too_expensive": 7
+}

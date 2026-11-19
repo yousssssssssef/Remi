@@ -1,0 +1,13 @@
+{
+  "id": "P015",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "need",
+  "reason": "I order groceries on Talabat several times a week and never plan ahead, so scanning receipts is a chore I would not keep up. The free version is fine to try, but I would not pay for Plus.",
+  "objection": "Recipes in these apps are Western, not what we cook. Nothing here says the 400 recipes are Arabic dishes, and I am not scanning receipts to get suggestions for pasta.",
+  "would_change_my_mind": "Proof that the recipes are mostly Gulf and Levantine dishes we actually cook, plus Ramadan meal planning and an easy way to import my Talabat orders instead of scanning receipts.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 4,
+  "price_too_expensive": 7
+}

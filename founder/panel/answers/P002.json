@@ -1,0 +1,13 @@
+{
+  "id": "P002",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from a reel the same day and my husband and I already double-buy; I'm not going to start scanning receipts every shop. Free is fine to look at, but I wouldn't pay for it.",
+  "objection": "I won't keep logging every item I buy and use. A receipt scan is one more chore, and the app is only useful if I do it every time.",
+  "would_change_my_mind": "If my husband and the helper were already in it and it just worked off the receipt with no manual fixing, I might try the free version and see if it stops the duplicate buying.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3.5,
+  "price_too_expensive": 6
+}

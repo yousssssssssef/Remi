@@ -1,0 +1,13 @@
+{
+  "id": "P014",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "price",
+  "reason": "I would download the free version and probably use the receipt scans, since I do bin vegetables every week. But paying for Plus when the free tier already covers expiry reminders, the shared list and recipes? Not at my income.",
+  "objection": "Another subscription. The free tier already gives me the main thing, and 5 scans a month is about what I'd use anyway, so I don't see why I'd pay $25 a year.",
+  "would_change_my_mind": "If the receipt scan proved accurate on my local supermarket receipts for a few weeks and the free scan limit was too low, I might pay a one-off or a cheap yearly price.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1,
+  "price_expensive": 2,
+  "price_too_expensive": 3.5
+}

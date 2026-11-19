@@ -1,0 +1,13 @@
+{
+  "id": "P020",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "trust",
+  "reason": "Receipt scanning is the whole reason to pay, and I have never seen an app read Arabic receipts properly, so I would be paying for a feature I don't believe in. The free part is fine to try, but I hate subscriptions and my helper does a lot of the cooking, so I would not keep paying monthly.",
+  "objection": "Receipt scanning never reads Arabic receipts properly, so the paid part would not work on my receipts and I'd still be typing everything in.",
+  "would_change_my_mind": "A free trial or a clear demo showing it correctly reading a real Arabic or mixed Arabic/English Gulf supermarket receipt, plus a refund if it fails on mine.",
+  "price_too_cheap": 1,
+  "price_cheap": 2,
+  "price_expensive": 4,
+  "price_too_expensive": 7
+}

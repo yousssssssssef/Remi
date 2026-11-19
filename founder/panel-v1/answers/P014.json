@@ -1,0 +1,13 @@
+{
+  "id": "P014",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "price",
+  "reason": "I'd install the free version and try it, since I do bin vegetables every week. But paying $3.99 a month on about $7,000 a year for scanning and a planner? I'd stay on free and the $79 device is out of the question.",
+  "objection": "Another subscription? The useful part, receipt scanning, is locked behind Plus, and I don't know if it reads receipts from my local shops in Arabic.",
+  "would_change_my_mind": "A free trial that shows scanning works on my own local receipts, and a much lower local price, around 1 USD a month.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3,
+  "price_too_expensive": 5
+}

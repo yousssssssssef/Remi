@@ -1,0 +1,13 @@
+{
+  "id": "P005",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I pick dinner from whatever cooking video I see that day, so I don't plan around what's in my fridge. Scanning receipts every shop sounds like extra work I wouldn't keep up. The free version is fine to look at, but paying for Plus isn't something I'd do.",
+  "objection": "I already cook from Instagram and TikTok videos on the day, so I don't see why I'd log my groceries into another app. I'd scan receipts for two weeks and then forget it.",
+  "would_change_my_mind": "If my husband or the helper were already using the shared list and it saved us from buying the same things twice, I'd stick with the free version. Paying would still need a clear reason.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3.5,
+  "price_too_expensive": 6
+}

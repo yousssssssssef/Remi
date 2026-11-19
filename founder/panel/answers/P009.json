@@ -1,0 +1,13 @@
+{
+  "id": "P009",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "trust",
+  "reason": "I do one big shop a week with a mental list and it works for me. I would not hand my family's receipts to an app, and a promise that it is never sold does not change that for me.",
+  "objection": "I don't trust an app with my family's data, and snapping every receipt is one more chore in my week.",
+  "would_change_my_mind": "Seeing that people I know use it and trust it, plus a way to use it without scanning receipts or sharing anything about my household.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1,
+  "price_expensive": 3,
+  "price_too_expensive": 5
+}

@@ -1,0 +1,13 @@
+{
+  "id": "P010",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "I already count calories in another app, and in our house my mother and the helper run the kitchen, not me and not a phone. Scanning receipts and inviting people to a list is one more chore I won't keep up.",
+  "objection": "My mother / my helper manages the kitchen, not an app. I'd be the only one using it, so the shared list and reminders would sit empty after a week.",
+  "would_change_my_mind": "If my helper could just snap the receipt and it worked in Arabic without me doing anything, and the nutrition part replaced my current calorie tracker for free.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 3.5,
+  "price_too_expensive": 6
+}

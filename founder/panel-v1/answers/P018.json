@@ -1,0 +1,13 @@
+{
+  "id": "P018",
+  "buys": false,
+  "purchases_first_month": 0,
+  "reason_code": "habit",
+  "reason": "My helper does part of the cooking and I just order from Talabat or Breadfast when I need something, I don't plan or track what's in the fridge. Scanning receipts and logging food sounds like homework I'd drop in a week.",
+  "objection": "The kitchen is run by my helper and my mother, not by an app, and I don't plan ahead anyway. Why would I pay every month to log groceries I order on my phone in two taps?",
+  "would_change_my_mind": "If it connected straight to my Talabat/Noon/Breadfast orders so the kitchen fills itself with no receipt scanning, and my helper could use it in Arabic.",
+  "price_too_cheap": 0.5,
+  "price_cheap": 1.5,
+  "price_expensive": 4,
+  "price_too_expensive": 7
+}
