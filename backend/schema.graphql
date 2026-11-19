@@ -152,6 +152,30 @@ input DeleteAccountInput {
   password: String!
 }
 
+type DevicePairingClaimType {
+  householdId: String
+
+  """Set once, when status is PAIRED."""
+  refreshToken: String
+  status: DevicePairingStatus!
+}
+
+enum DevicePairingStatus {
+  EXPIRED
+  PAIRED
+  WAITING
+}
+
+type DevicePairingType {
+  """Six digits the device shows; the person types them in the Remi app."""
+  code: String!
+  expiresInSeconds: Int!
+  pairingId: String!
+
+  """Kept on the device; proves it when claiming the session."""
+  secret: String!
+}
+
 enum DietaryPreference {
   DAIRY_FREE
   GLUTEN_FREE
@@ -559,6 +583,9 @@ type Mutation {
   adjustStock(input: InventoryAdjustmentInput!): InventoryMutationResult!
   archiveRecipe(id: ID!): Boolean!
 
+  """Polled by the device until the code is entered in the app. Public."""
+  claimDevicePairing(pairingId: String!, secret: String!): DevicePairingClaimType!
+
   """
   Step 2 of 2: validates the uploaded bytes and records the image. Idempotent per storageKey.
   """
@@ -593,6 +620,9 @@ type Mutation {
   """Revoke every active session for the current user."""
   logoutAll: Boolean!
   markNotificationRead(id: String!): NotificationItemType!
+  """Called from the Remi app: links the device showing this code to the household."""
+  pairDevice(code: String!): PairedDeviceType!
+
   planMeal(input: PlanMealInputType!): PlannedMealType!
   receivePurchaseOrderItem(input: ReceivePurchaseOrderItemInputType!): PurchaseReceiptType!
   receiveReceipt(input: ReceiveReceiptInput!): ReceiveReceiptResultType!
@@ -628,6 +658,9 @@ type Mutation {
   setDietaryPreferences(input: SetDietaryPreferencesInputType!): MyProfileType!
   setGoal(input: SetGoalInputType!): UserGoalType!
   setHealthConditions(input: SetHealthConditionsInputType!): MyProfileType!
+  """Called by a Remi device to get a pairing code. Public."""
+  startDevicePairing(deviceName: String! = "Remi"): DevicePairingType!
+
   submitCookbookFeedback(input: SubmitCookbookFeedbackInput!): CookbookFeedback!
 
   """
@@ -741,6 +774,10 @@ type NutritionProfile {
 
   """Null when the source does not report it"""
   sugarG: Decimal
+}
+
+type PairedDeviceType {
+  deviceName: String!
 }
 
 input PlanMealInputType {

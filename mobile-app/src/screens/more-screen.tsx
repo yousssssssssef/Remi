@@ -18,6 +18,7 @@ const groups: { title: string; ar: string; items: { id: string; name: string; ar
     { id: 'community', name: 'Household & invitations', ar: 'الأسرة والدعوات', icon: 'community' },
     { id: 'notifications', name: 'Updates & reminders', ar: 'التحديثات والتذكيرات', icon: 'bell' },
     { id: 'photos', name: 'Kitchen photos', ar: 'صور المطبخ', icon: 'photo' },
+    { id: 'remi-device', name: 'Pair a Remi device', ar: 'اقتران جهاز Remi', icon: 'kitchen' },
   ] },
   { title: 'Made for you', ar: 'من أجلك', items: [
     { id: 'profile', name: 'Your account', ar: 'حسابك', icon: 'profile' },

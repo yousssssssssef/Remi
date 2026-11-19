@@ -4,6 +4,7 @@ import { ConnectedShoppingScreen } from './connected-shopping-screen';
 import { ConnectedNotificationsScreen } from './connected-notifications-screen';
 import { ConnectedHouseholdScreen } from './connected-household-screen';
 import { ConnectedHealthScreen } from './connected-health-screen';
+import { ConnectedRemiDeviceScreen } from './connected-remi-device-screen';
 import AssistantScreen from './assistant-screen';
 import LeftoversScreen from './leftovers-screen';
 import ContactScreen from './contact-screen';
@@ -40,6 +41,7 @@ export default function FeaturePreview() {
   if (feature === 'notifications') return <ConnectedNotificationsScreen />;
   if (feature === 'community' || feature === 'household') return <ConnectedHouseholdScreen />;
   if (feature === 'health') return <ConnectedHealthScreen />;
+  if (feature === 'remi-device') return <ConnectedRemiDeviceScreen />;
   if (item?.id === 'shopping') return <ConnectedShoppingScreen />;
   if (item?.id === 'planner') return <ConnectedPlannerScreen />;
   if (item?.id === 'recipes') return <ConnectedRecipesScreen />;

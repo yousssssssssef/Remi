@@ -20,6 +20,7 @@ import { SearchModule } from './modules/search/search.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { MediaModule } from './modules/media/media.module.js';
 import { ReceiptsModule } from './modules/receipts/receipts.module.js';
+import { DeviceModule } from './modules/device/device.module.js';
 import { AppConfigService } from './platform/config/app-config.service.js';
 import { ConfigModule } from './platform/config/config.module.js';
 import { DbModule } from './platform/db/db.module.js';
@@ -86,6 +87,7 @@ import { TenancyModule } from './platform/tenancy/tenancy.module.js';
     }),
     LeftoversModule,
     ReceiptsModule,
+    DeviceModule,
     ReferenceModule,
     IdentityModule,
     CatalogModule,

@@ -5,6 +5,7 @@ import { CreateHouseholdHandler } from './application/commands/create-household/
 import { InviteMemberHandler } from './application/commands/invite-member/invite-member.handler.js';
 import { LeaveHouseholdHandler } from './application/commands/leave-household/leave-household.handler.js';
 import { LoginHandler } from './application/commands/login/login.handler.js';
+import { IssueDeviceSessionHandler } from './application/commands/issue-device-session/issue-device-session.handler.js';
 import { LogoutAllHandler } from './application/commands/logout-all/logout-all.handler.js';
 import { LogoutHandler } from './application/commands/logout/logout.handler.js';
 import { RefreshAccessTokenHandler } from './application/commands/refresh-access-token/refresh-access-token.handler.js';
@@ -52,6 +53,7 @@ import { InvitationResolver } from './presentation/resolvers/invitation.resolver
 const CommandHandlers = [
   RegisterHandler,
   LoginHandler,
+  IssueDeviceSessionHandler,
   RefreshAccessTokenHandler,
   LogoutHandler,
   LogoutAllHandler,
