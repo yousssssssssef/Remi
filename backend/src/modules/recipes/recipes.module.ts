@@ -8,5 +8,5 @@ import { ReceiptsModule } from '@/modules/receipts/receipts.module.js';
 import { RecipeImportService } from './application/recipe-import.service.js';
 import { RecipeImportResolver } from './presentation/recipe-import.resolver.js';
 
-@Module({ imports: [SafetyModule, ReceiptsModule], providers: [RecipeService, RecipeResolver, RecipeSuggestionsService, RecipeSuggestionsResolver, RecipeImportService, RecipeImportResolver], exports: [RecipeService] })
+@Module({ imports: [SafetyModule, ReceiptsModule], providers: [RecipeService, RecipeResolver, RecipeSuggestionsService, RecipeSuggestionsResolver, RecipeImportService, RecipeImportResolver], exports: [RecipeService, RecipeSuggestionsService] })
 export class RecipesModule {}

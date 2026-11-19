@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
@@ -13,10 +14,11 @@ async function bootstrap() {
     /* no .env file */
   }
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const config = app.get(AppConfigService);
 
   app.useLogger(app.get(Logger));
+  app.useBodyParser('raw', { type: ['image/jpeg', 'image/png'], limit: '6mb' }); // photos from the Remi device (POST /device/scan)
   app.use(helmet({ contentSecurityPolicy: config.isProduction ? undefined : false }));
   app.enableCors({ origin: config.corsOrigins, credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

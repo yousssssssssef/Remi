@@ -397,6 +397,27 @@ def avatar_sprites(layers):
     return alpha_mask_from(opened, AVATAR_BOX), alpha_mask_from(blinked, AVATAR_BOX)
 
 
+BIG_BOX = (22, 40, 106, 114)   # Remi's large face for the ambient fridge mode, drawn in three layers
+
+
+def big_face(layers):
+    """Brows+smile, open eyes and shut eyes as separate masks, so the eyes can look around and blink."""
+    x0, y0, x1, y1 = BIG_BOX
+    k = min((x1 - x0) / (FACE_RECT[2] - FACE_RECT[0]), (y1 - y0) / (FACE_RECT[3] - FACE_RECT[1]))
+    rx, ry = (FACE_RECT[0] + FACE_RECT[2]) / 2, (FACE_RECT[1] + FACE_RECT[3]) / 2
+    c = ((x0 + x1) / 2 + (FACE_CENTER[0] - rx) * k, (y0 + y1) / 2 + (FACE_CENTER[1] - ry) * k)
+    eyes = layers['eyes']
+    bbox = eyes.crop(tuple((v + 12) * PX_PER_UNIT for v in FACE_RECT)).getbbox()
+    ex0, ey0, ex1, ey1 = [b + (FACE_RECT[i % 2] + 12) * PX_PER_UNIT for i, b in enumerate(bbox)]
+    shut = Image.new('RGBA', eyes.size, (0, 0, 0, 0))
+    shut.paste(eyes.crop((ex0, ey0, ex1, ey1)).resize((ex1 - ex0, max(6, (ey1 - ey0) // 7)), Image.LANCZOS),
+               (ex0, ey0 + (ey1 - ey0) * 3 // 5))
+    out = []
+    for layer in (layers['noeyes'], eyes, shut):
+        out.append(alpha_mask_from(place(mips(face_only(layer)), k, c), BIG_BOX))
+    return out
+
+
 # ---------- fonts ----------
 FONT_SPECS = [  # name, file, px size, characters
     ('FONT_TIME', 'DMSans-Display.ttf', 40, '0123456789:-'),
@@ -462,12 +483,51 @@ def icon(name, size):
     elif name == 'leaf':
         d.ellipse([p(.14, .14), p(.86, .86)], outline=255, width=lw)
         d.line([p(.3, .7), p(.72, .3)], fill=255, width=lw)
+    elif name == 'calendar':
+        d.rounded_rectangle([p(.12, .2), p(.88, .88)], radius=s * .1, outline=255, width=lw)
+        d.line([p(.12, .4), p(.88, .4)], fill=255, width=lw)
+        d.line([p(.32, .08), p(.32, .28)], fill=255, width=lw); d.line([p(.68, .08), p(.68, .28)], fill=255, width=lw)
+    elif name == 'fridge':
+        d.rounded_rectangle([p(.22, .06), p(.78, .94)], radius=s * .1, outline=255, width=lw)
+        d.line([p(.22, .4), p(.78, .4)], fill=255, width=lw)
+        d.line([p(.34, .18), p(.34, .3)], fill=255, width=lw); d.line([p(.34, .52), p(.34, .66)], fill=255, width=lw)
+    elif name == 'chat':
+        d.rounded_rectangle([p(.08, .14), p(.92, .7)], radius=s * .2, outline=255, width=lw)
+        d.polygon([p(.26, .64), p(.44, .64), p(.24, .9)], fill=255)
+    elif name == 'camera':
+        d.rounded_rectangle([p(.06, .28), p(.94, .86)], radius=s * .12, outline=255, width=lw)
+        d.rectangle([p(.34, .14), p(.66, .3)], fill=255)
+        d.ellipse([p(.32, .38), p(.68, .74)], outline=255, width=lw)
+    elif name == 'link':
+        d.rounded_rectangle([p(.3, .06), p(.7, .94)], radius=s * .1, outline=255, width=lw)
+        d.line([p(.44, .82), p(.56, .82)], fill=255, width=lw)
+    elif name == 'barcode':
+        for x, w in ((.12, .06), (.24, .03), (.32, .08), (.46, .03), (.54, .05), (.66, .03), (.74, .07), (.86, .03)):
+            d.rectangle([p(x, .2), p(x + w, .8)], fill=255)
+    elif name == 'label':
+        d.rounded_rectangle([p(.18, .08), p(.82, .92)], radius=s * .08, outline=255, width=lw)
+        for y in (.3, .48, .66):
+            d.line([p(.32, y), p(.68, y)], fill=255, width=max(S, lw // 2))
+    elif name == 'list':
+        for y in (.24, .5, .76):
+            d.ellipse([p(.1, y - .07), p(.24, y + .07)], fill=255)
+            d.line([p(.36, y), p(.9, y)], fill=255, width=lw)
+    elif name == 'receipt':
+        d.polygon([p(.2, .06), p(.8, .06), p(.8, .94), p(.7, .86), p(.6, .94), p(.5, .86), p(.4, .94), p(.3, .86), p(.2, .94)], outline=255, width=lw)
+        for y in (.3, .48):
+            d.line([p(.34, y), p(.66, y)], fill=255, width=max(S, lw // 2))
     return im.resize((size, size), Image.LANCZOS)
 
 
 ICON_SPECS = [('ICON_HOME', 'home', 13), ('ICON_BAG', 'bag', 13), ('ICON_POT', 'pot', 13), ('ICON_MIC', 'mic', 13),
               ('ICON_BAG_L', 'bag', 30), ('ICON_POT_L', 'pot', 30), ('ICON_MIC_L', 'mic', 34),
-              ('ICON_CHECK', 'check', 9), ('ICON_WIFI', 'wifi', 10), ('ICON_CLOCK', 'clock', 10), ('ICON_LEAF', 'leaf', 10)]
+              ('ICON_CHECK', 'check', 9), ('ICON_WIFI', 'wifi', 10), ('ICON_CLOCK', 'clock', 10), ('ICON_LEAF', 'leaf', 10),
+              # page rail, one per page, in page order
+              ('RAIL_HOME', 'home', 10), ('RAIL_TODAY', 'calendar', 10), ('RAIL_KITCHEN', 'fridge', 10), ('RAIL_BAG', 'bag', 10),
+              ('RAIL_COOK', 'pot', 10), ('RAIL_ASK', 'chat', 10), ('RAIL_SCAN', 'camera', 10), ('RAIL_LINK', 'link', 10),
+              # Scan page
+              ('ICON_CAMERA_L', 'camera', 30), ('ICON_BARCODE', 'barcode', 16), ('ICON_LABEL', 'label', 16),
+              ('ICON_LIST', 'list', 16), ('ICON_RECEIPT', 'receipt', 16)]
 
 
 def pack4(img):
@@ -518,12 +578,15 @@ def main():
         out.append(f'static const uint8_t {name}_BITS[] = {{\n{c_bytes(bitmap)}\n}};')
         out.append(f'static const Glyph {name}_GLYPHS[] = {{' + ', '.join('{%d,%d,%d,%d,%d,%d,%d}' % g for g in glyphs) + '};')
         out.append(f'static const Font {name} = {{{name}_GLYPHS, {len(glyphs)}, {name}_BITS, {asc}, {desc}}};\n')
-    masks = [(n, icon(k, s)) for n, k, s in ICON_SPECS] + [('AVATAR_OPEN', open_mask), ('AVATAR_BLINK', blink_mask)]
+    big_features, big_eyes, big_shut = big_face(layers)
+    masks = [(n, icon(k, s)) for n, k, s in ICON_SPECS] + [('AVATAR_OPEN', open_mask), ('AVATAR_BLINK', blink_mask),
+             ('BIG_FEATURES', big_features), ('BIG_EYES', big_eyes), ('BIG_EYES_SHUT', big_shut)]
     for name, img in masks:
         out.append(f'static const uint8_t {name}_BITS[] = {{\n{c_bytes(pack4(img))}\n}};')
         out.append(f'static const Mask {name} = {{{name}_BITS, {img.width}, {img.height}}};\n')
     out.append(f'static const int16_t AVATAR_X = {AVATAR_BOX[0]}, AVATAR_Y = {AVATAR_BOX[1]};')
     out.append(f'#define REMI_BG 0x{BG_HEX:06X}  // device background colour (builder and firmware must match)')
+    out.append(f'static const int16_t BIG_FACE_X = {BIG_BOX[0]}, BIG_FACE_Y = {BIG_BOX[1]};')
     (FW / 'ui_assets.h').write_text('\n'.join(out) + '\n')
 
     sheet = Image.new('RGB', (W * 8, H * 3), 'black')

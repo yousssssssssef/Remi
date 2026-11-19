@@ -79,6 +79,19 @@ struct AppData {
   char setupSsid[24] = "";   // set while the device runs its own setup Wi-Fi
   char setupPass[24] = "";
   char wifiName[33] = "";
+  // Scan: the ESP32-CAM camera, or a photo sent from the phone remote
+  bool hasCamera = false;
+  uint8_t scanMode = 0;              // 0 barcode, 1 nutrition label, 2 shopping list, 3 receipt
+  Job scan = Job::Idle, scanApply = Job::Idle;
+  char scanTitle[48] = "";
+  char scanLines[6][44] = {};
+  int scanLineCount = 0;
+  uint8_t scanAction = 0;            // 0 nothing to do, 1 add to kitchen, 2 add to shopping list
+  // AI replies from the backend (POST /device/ask); the UI falls back to local answers
+  char pairCode[8] = "";              // shown on Connect while waiting to be paired from the Remi app
+  char askQuestion[64] = "";
+  char askReply[300] = "";
+  Job ask = Job::Idle;
 };
 
 extern AppData data;
@@ -88,6 +101,8 @@ uint32_t nowMs();
 bool localTime(struct tm *out);  // false until the clock is synced
 void lockData();
 void unlockData();
+// Live camera preview into a region of the framebuffer; false when there's no camera (draws a placeholder).
+bool cameraPreview(uint16_t *fb, int x, int y, int w, int h);
 
 enum class Request : uint8_t {
   Refresh,      // everything: kitchen, list, ideas, today
@@ -97,7 +112,10 @@ enum class Request : uint8_t {
   KitchenUse,   // arg = kitchen index: used it up
   KitchenToss,  // arg = kitchen index: threw it out
   SearchFoods,  // data.pickQuery -> data.picks
-  AddToList     // arg = picks index -> active shopping list
+  AddToList,    // arg = picks index -> active shopping list
+  Scan,         // capture with the camera and read it (data.scanMode)
+  ScanApply,    // do data.scanAction with the scan's items
+  Ask           // data.askQuestion -> data.askReply (AI, with household context)
 };
 void backendRequest(Request r, int arg = 0);  // non-blocking; results land in `data`
 

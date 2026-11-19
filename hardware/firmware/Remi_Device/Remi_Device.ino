@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include "app_data.h"
 #include "backend.h"
+#include "camera.h"
 #include "config.h"
 #include "gfx.h"
 #include "remote.h"
@@ -78,7 +79,12 @@ void pollInputs() {
     else if (e.kind == 'r') ui::input(ui::Input::Right);
     else if (e.kind == 'p') ui::input(ui::Input::Press);
     else if (e.kind == 'h') ui::input(ui::Input::LongPress);
-    else ui::textInput(e.kind == 'a' ? ui::TextKind::Add : ui::TextKind::Ask, e.text);
+    else if (e.kind == 's') {
+      int mode = atoi(e.text);
+      ui::photoArrived(mode);
+      lockData(); data.scan = Job::Working; unlockData();
+      backendRequest(Request::Scan, mode);
+    } else ui::textInput(e.kind == 'a' ? ui::TextKind::Add : ui::TextKind::Ask, e.text);
   }
   while (Serial.available()) {  // keyboard stand-in for the knob (Serial Monitor, 115200)
     char c = Serial.read();
@@ -95,9 +101,28 @@ void pollInputs() {
 // I2S starts once and runs continuously (silence between sounds), in true stereo: on the original ESP32 the
 // driver's 16-bit mono mode silently becomes stereo, so mono samples would be mis-framed. Each sample goes
 // to both channels. On the CAM, IO4 (LRC) also drives the flash LED, which glows while I2S runs: tape over it.
+volatile bool audioHold = false, audioHeld = false;
+
+// On the CAM the camera's clock is IO0, the speaker's DIN: I2S stops while the camera runs.
+void audioPause(bool paused) {
+  if (!audioOn) return;
+  if (paused) {
+    if (audioHold) return;
+    audioHold = true;
+    while (!audioHeld) delay(2);  // let the audio task finish its current write
+    i2s.end();
+  } else if (audioHold) {
+    i2s.setPins(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
+    i2s.begin(I2S_MODE_STD, synth::RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
+    audioHeld = false;  // cleared first, so the next pause waits for the task to really stop
+    audioHold = false;
+  }
+}
+
 void audioTask(void *) {
   static int16_t mono[256], stereo[512];
   for (;;) {
+    if (audioHold) { audioHeld = true; delay(10); continue; }
     synth::render(mono, 256);
     for (int i = 0; i < 256; ++i) stereo[2 * i] = stereo[2 * i + 1] = mono[i];
     i2s.write((const uint8_t *)stereo, sizeof stereo);  // blocks at the sample rate
@@ -142,6 +167,7 @@ void setup() {
       ui::notify("Speaker didn't start");  // shown on screen: on the CAM, serial TX goes to the red LED
     }
   }
+  cameraBegin();
   backendBegin();
   remoteBegin();
   ui::begin();
@@ -151,6 +177,7 @@ void loop() {
   static uint32_t nextFrame = 0;
   pollInputs();
   ui::render();
+  cameraIdle();
   tft.startWrite();
   tft.setAddrWindow(0, 0, gfx::W, gfx::H);
   tft.writePixels(gfx::fb, gfx::W * gfx::H);

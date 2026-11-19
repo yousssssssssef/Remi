@@ -1,6 +1,6 @@
 # Remi hardware: the kitchen device
 
-Remi on your counter: a 1.8" screen, one knob and a speaker, driven by an ESP32. It talks to the Remi API in [`backend/`](../backend). It shows the time, what's in your kitchen and what to use first. It puts away your groceries, walks you through recipes with timers, and speaks in Remi's own voice. A microphone for talking to Remi is planned.
+Remi on your counter: a 1.8" screen, one knob and a speaker, driven by an ESP32. It talks to the Remi API in [`backend/`](../backend). It shows the time, what's in your kitchen and what to use first. It puts away your groceries, walks you through recipes with timers, and speaks in Remi's own voice. It reads barcodes, nutrition labels, shopping lists and receipts from a photo, answers questions with Claude, and pairs with the Remi app using a 6-digit code. A microphone for talking to Remi is planned.
 
 - **3D build guide and live simulator:** [`sim/`](sim). See [how to run it](sim/README.md). It shows today's ESP32-CAM bench build, the full wired build, an exploded enclosure and the finished Remi. The 3D screen runs the **real firmware UI and sounds**, compiled to WebAssembly, and you can turn the 3D knob.
 - **Preview video with sound:** [`preview/remi-device-preview.mp4`](preview/remi-device-preview.mp4) · screens: [`preview/screens.png`](preview/screens.png)
@@ -25,7 +25,7 @@ Press the knob to skip the boot; that also cuts the music.
 
 **Colour.** The whole boot is rendered from Remi's original vectors (`assets/vectors`), so lines stay sharp. The device background is **Remi gold `#F2C230`** rather than the app's lemon `#F8E45C`, which washes out to near-white on the TN-type TFT. To compare shades on your own screen, send `c` in the Serial Monitor: it shows six swatches.
 
-Seven pages, left to right:
+Eight pages, left to right, shown as an icon rail along the bottom of the screen:
 
 | Page | Shows | Press | Inside |
 |---|---|---|---|
@@ -34,17 +34,29 @@ Seven pages, left to right:
 | **Kitchen** | Your foods, soonest expiry first, with days left | See everything | Pick a food, then **Used it up** (`consumeStock`) or **Threw it out** (`discardStock`) |
 | **Just bought** | Items on the active shopping list | Open the list | Tick what you bought, then **Put away** (`addStock` and marked bought). Typing "milk" on the phone remote searches the catalogue; you pick the match with the knob and it's added to the list |
 | **Cook** | Best recipe for what you have | Recipe ideas | Steps with timers. At the end, **I cooked it** logs the meal, which deducts the ingredients from the kitchen (`logMeal`) |
-| **Ask Remi** | — | Questions | What can I cook? What should I use first? What's on my list? What's planned today? How am I doing today? Answers come from your kitchen data, in Remi's voice. Typed questions from the phone are matched to these |
-| **Connect** | QR code for the phone remote (or for joining the setup Wi-Fi) | — | — |
+| **Ask Remi** | — | Questions | What can I cook? What should I use first? What's on my list? What's planned today? How am I doing today? Answers show at once from your kitchen data; typed questions from the phone go to Claude, with your kitchen as context, and the reply replaces the local answer |
+| **Scan** | Barcode, Label, List, Receipt | Pick what you're scanning | Camera viewfinder (ESP32-CAM) or a photo from the phone remote. Claude reads it; Remi shows what it found, and one press puts the foods in the kitchen (`addStock`) or on the shopping list (`addToShoppingList`) |
+| **Connect** | QR code for the phone remote (or for joining the setup Wi-Fi), or the pairing code on first run | — | — |
 
 The knob: **turn** = next or previous, **press** = select, **hold** = back. Every action has a sound, and Remi talks in a synthesized robot voice. The look follows the app's "Sip Happy" design (lemon, cobalt, pink and DM Sans; see [`DESIGN.md`](../DESIGN.md)).
+
+**Left alone, it becomes a fridge clock.** After 45 seconds without input, Remi switches to ambient mode: a big clock, Remi's face with eyes that wander and blink, and one rotating line about your kitchen ("2 foods to use first", "Tonight: pasta"). From 22:00 to 06:00 it turns night navy and Remi sleeps. Any turn or press wakes it.
+
+### Design audit (November 2026)
+
+What changed, and why, for a 1.8" TN panel seen from across the kitchen:
+- **Navigation you can see.** The old dots became an icon rail with a sliding white pill, so you always know where you are and how far the next page is. The first three times you go into a page, Remi reminds you that holding the knob goes back.
+- **Fewer, bigger things.** Small uppercase labels ("COOK NOW", "PLANNED") are gone; each page leads with one large figure or title, readable at fridge distance. Text fits its box or is shortened; nothing overflows.
+- **The panel's strengths.** Saturated cobalt, gold and pink on flat fills, which TN panels show well; no thin greys or gradients, which they wash out. Gold `#F2C230` instead of lemon, for the same reason.
+- **Remi is alive.** His eyes follow the knob and wander when idle; ambient mode makes the device worth glancing at when you're not using it.
+- **Failure is calm.** Without a network the local answers, cached kitchen and sounds still work, and every failed action says what happened in one line.
 
 ### Control it from your phone or Mac (no encoder needed)
 
 The device serves its own remote:
 1. Open the **Connect** page and scan the QR code, or browse to `http://<device-ip>` (`http://remi.local` also works on Macs and iPhones).
 2. You get a **touch knob**: drag it around to turn (20 clicks per turn, like the KY-040), tap to press, hold half a second to go back. On a Mac, use the arrow keys, Space and Esc.
-3. The same page has text boxes for **"Add to shopping list"** and **"Ask Remi"**.
+3. The same page has text boxes for **"Add to shopping list"** and **"Ask Remi"**, and four **Scan with your phone** buttons (Barcode, Label, List, Receipt). Each opens the phone camera; the photo is shrunk to 1024 px on the phone, sent to Remi (`POST /photo?mode=0..3`), and Remi jumps to the Scan page while it's read.
 
 These are the same four events the rotary encoder sends, so everything you test now behaves the same once the knob is wired. The Serial Monitor keys still work too: `a`/`d`/`s`/`b`, `c` for the colour test, `t` for the test tone.
 
@@ -55,18 +67,32 @@ These are the same four events the rotary encoder sends, so everything you test 
 
 `secrets.h` is now optional: it only supplies first-boot defaults.
 
+**Pair with the Remi app instead of typing a password.** Leave the email and password empty on the setup page. Remi asks the API for a pairing code (`startDevicePairing`) and shows it on the Connect page. In the app, open **More > Pair a Remi device**, type the 6 digits, and the app calls `pairDevice` for your active household. Remi polls `claimDevicePairing` every 3 seconds, receives its own refresh token and household, saves them, and syncs. Codes last 10 minutes. The device's session shows up among your account sessions as "Remi device: Remi kitchen".
+
 ### SD card?
 
 **Not needed.** Everything lives in flash (boot animation, fonts, settings) or comes from the API. On the ESP32-CAM, the SD slot shares pins with the screen (IO2, IO13, IO14, IO15), so a card can't be used there anyway.
 
-### Receipt scanner (next step, needs a server-side reader)
+### Scan and AI replies
 
-The ESP32-CAM has a camera, but in the Remi app the reading itself happens on the phone (Apple Vision or ML Kit). The server only matches names (`matchReceiptItems`), and the ESP32 can't do text recognition. A device scanner needs:
-1. **A capture page on the device:** camera preview on the TFT, then press to shoot a JPEG. This needs the camera's IO0 clock pin, so it can't run at the same time as the CAM speaker build.
-2. **A server endpoint:** it takes the photo, runs OCR, then reuses the receipt parser and `matchReceiptItems`. Two options:
-   - **Tesseract:** open source, no API key, weaker on photos.
-   - **A vision model:** best accuracy, needs a provider key.
-3. **Review on the device:** confirmed foods go in with `receiveReceipt` / `addStock`, the same flow as Just bought.
+The ESP32 can't read text itself, so it sends the photo to the backend, which asks Claude (`claude-opus-5-5`, structured output) to read it:
+
+| Mode | Reads | Then |
+|---|---|---|
+| Barcode | The number, matched to a product in the catalogue | Add it to the kitchen |
+| Label | Name and nutrition facts per serving | Shows the facts; add it to the kitchen |
+| List | A handwritten or printed shopping list | Add every matched food to the shopping list |
+| Receipt | The food lines on a grocery receipt, matched with `matchReceiptItems`' matcher | Put them all away |
+
+Where photos come from:
+- **ESP32-CAM:** the OV2640 camera. The Scan viewfinder shows a live 160×120 preview on the TFT; press to take an 800×600 JPEG. The camera's clock is IO0, which the CAM speaker build uses for DIN, so audio pauses while the camera is on and comes back a second after you leave the viewfinder.
+- **Any board:** the phone remote's Scan buttons. On the DevKit (no camera), the viewfinder says to use the phone.
+
+Device endpoints (REST, next to `/graphql`, same Bearer token and `x-household-id` header):
+- `POST /device/ask` with `{"question": "..."}` returns `{"reply": "..."}` (at most 280 characters, ASCII for the device fonts).
+- `POST /device/scan?mode=barcode|label|list|receipt` with a JPEG or PNG body (up to 6 MB) returns `{title, lines[], action: "kitchen"|"list"|"none", items[{foodId, name, amount, unit}]}`.
+
+Both are limited to 40 calls per 10 minutes per household. The server needs `ANTHROPIC_API_KEY` in `backend/.env`; without it these return 503 and the device keeps its local answers.
 
 ## Live preview while designing (like the iOS Simulator)
 
@@ -208,11 +234,11 @@ On the CAM:
 - **Navigate:** from the Serial Monitor at 115200, `a`/`d` = left/right, `s` = press, `b` = hold, `c` = colour test.
 - **Upload:** IO0→GND jumper, TFT A0 unplugged, then RESET. The amp can stay connected.
 
-## Talk to Remi (planned)
+## Talk to Remi (voice planned; typed questions work now)
 
 1. **Mic:** INMP441 on the shared I2S clocks, data on GPIO35, 16 kHz mono.
 2. **Push to talk:** hold the knob on the Talk page. Remi shows a listening face and a level meter.
-3. **Backend:** a new `POST /voice/turn` endpoint does speech to text. It then calls Claude with the household context, using tools mapped to existing operations: `addToShoppingList`, `addStock`, `consumeStock`, `recipeSuggestions` and starting a recipe on the device. It returns reply text plus device actions.
+3. **Backend:** a new `POST /voice/turn` endpoint does speech to text, then reuses `POST /device/ask`'s household context and Claude call, using tools mapped to existing operations: `addToShoppingList`, `addStock`, `consumeStock`, `recipeSuggestions` and starting a recipe on the device. It returns reply text plus device actions.
 4. **Reply:** shown in Remi's speech bubble and voiced. Start with the babble voice; real text-to-speech can stream back as 16 kHz PCM through the same amp.
 5. **Wake word later:** ESP-SR WakeNet needs an ESP32-S3.
 
@@ -247,11 +273,12 @@ PY=python3 hardware/preview/render.sh    # needs Pillow and imageio-ffmpeg
 ## Status
 
 - **Verified:**
-  - The firmware compiles for ESP32 Dev Module and ESP32-CAM: core 3.3.13, 59% of a 3 MB app partition.
+  - The firmware compiles for ESP32 Dev Module (63% of a 3 MB app partition) and ESP32-CAM with the camera (66%), on core 3.3.13.
   - The screen-only build runs on the ESP32-CAM, and its pages work from the Serial Monitor.
   - All GraphQL operations validate against `backend/schema.graphql`.
   - The WebAssembly build renders the same screens as the device code.
 - **Not yet verified:**
   - The DevKit build with the knob and speaker on real hardware.
-  - Sync against a running API.
+  - Sync, scan, AI replies and pairing against a running API (the backend's device module passes its unit tests and typecheck).
+  - The camera preview and capture on the CAM, and audio coming back after the camera turns off.
   - The enclosure is a concept model; dimensions are for planning, not a printable CAD file.

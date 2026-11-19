@@ -9,6 +9,7 @@
 #include <WiFi.h>
 #include "app_data.h"
 #include "backend.h"
+#include "camera.h"
 #include "config.h"
 #include "queries.h"
 #if __has_include("secrets.h")
@@ -142,6 +143,31 @@ Result post(const char *query, JsonDocument &vars, JsonDocument &out, bool auth)
   return Result::Ok;
 }
 
+// The device's REST endpoints sit beside /graphql on the same server (POST /device/ask, /device/scan).
+String restUrl(const char *path) {
+  String base = cfg.apiUrl;
+  if (base.endsWith("/graphql")) base.remove(base.length() - 8);
+  return base + path;
+}
+
+Result rest(const char *path, const char *contentType, const uint8_t *body, size_t len, JsonDocument &out) {
+  if (WiFi.status() != WL_CONNECTED || !cfg.apiUrl.length()) return Result::Net;
+  HTTPClient http;
+  http.setTimeout(45000);  // reading a photo takes a few seconds
+  if (!http.begin(restUrl(path))) return Result::Net;
+  http.addHeader("Content-Type", contentType);
+  http.addHeader("Authorization", "Bearer " + accessToken);
+  if (householdId.length()) http.addHeader("x-household-id", householdId);
+  http.setUserAgent("Remi-Device/1.2 (ESP32)");
+  int code = http.POST(const_cast<uint8_t *>(body), len);
+  if (code <= 0) { http.end(); return Result::Net; }
+  DeserializationError err = deserializeJson(out, http.getStream());
+  http.end();
+  if (code == 401) return Result::Auth;
+  if (code >= 400 || err) { Serial.printf("REST %s -> %d\n", path, code); return Result::Failed; }
+  return Result::Ok;
+}
+
 bool storeTokens(JsonObject t) {
   if (t.isNull() || !t["accessToken"].is<const char *>()) return false;
   accessToken = t["accessToken"].as<const char *>();
@@ -187,6 +213,18 @@ Result call(const char *query, JsonDocument &vars, JsonDocument &out) {
   return post(query, vars, out, true);
 }
 
+Result restCall(const char *path, const char *contentType, const uint8_t *body, size_t len, JsonDocument &out) {
+  if (!accessToken.length() || int32_t(millis() - accessValidUntil) > 0) {
+    if (!signIn()) return Result::Auth;
+  }
+  Result r = rest(path, contentType, body, len, out);
+  if (r != Result::Auth) return r;
+  accessToken = "";
+  if (!signIn()) return Result::Auth;
+  out.clear();
+  return rest(path, contentType, body, len, out);
+}
+
 bool ok(Result r, JsonDocument &out, const char *field, const char *success) {
   return r == Result::Ok && out["data"][field]["__typename"] == success;
 }
@@ -197,6 +235,7 @@ bool loadIdentity() {
   JsonArray hh = out["data"]["myHouseholds"];
   if (hh.isNull() || !hh.size()) { Serial.println("This account has no household yet"); return false; }
   householdId = hh[0]["household"]["id"].as<const char *>();
+  prefs.putString("hh", householdId);
   char first[24];
   ascii(first, sizeof first, out["data"]["me"]["name"] | "");
   if (char *sp = strchr(first, ' ')) *sp = 0;
@@ -550,6 +589,127 @@ void addToList(int index) {
   unlockData();
 }
 
+// ---- AI: replies and photo reading (backend/src/modules/device) ----
+void ask() {
+  JsonDocument body, out;
+  lockData();
+  body["question"] = data.askQuestion;
+  unlockData();
+  String json;
+  serializeJson(body, json);
+  bool good = restCall("/device/ask", "application/json", (const uint8_t *)json.c_str(), json.length(), out) == Result::Ok;
+  lockData();
+  if (good) ascii(data.askReply, sizeof data.askReply, out["reply"] | "");
+  data.ask = good && data.askReply[0] ? Job::Done : Job::Failed;  // Failed: the UI keeps its local answer
+  unlockData();
+}
+
+struct ScanItemRow { char foodId[40], amount[16], unit[12]; };
+ScanItemRow scanItems[24];
+int scanItemCount = 0;
+char scanActionKind[8] = "";
+
+void scan(int mode) {
+  static const char *const MODES[] = {"barcode", "label", "list", "receipt"};
+  Photo photo{nullptr, 0, false};
+  bool have = takePhoto(photo);                                   // a photo sent from the phone wins
+  if (!have) have = cameraCaptureJpeg(&photo.bytes, &photo.len);  // else the CAM's own camera
+  JsonDocument out;
+  Result r = Result::Failed;
+  if (have) {
+    char path[48];
+    snprintf(path, sizeof path, "/device/scan?mode=%s", MODES[mode & 3]);
+    r = restCall(path, photo.png ? "image/png" : "image/jpeg", photo.bytes, photo.len, out);
+  }
+  free(photo.bytes);
+  lockData();
+  if (r == Result::Ok) {
+    ascii(data.scanTitle, sizeof data.scanTitle, out["title"] | "");
+    data.scanLineCount = 0;
+    for (JsonVariant l : out["lines"].as<JsonArray>()) {
+      if (data.scanLineCount == 6) break;
+      ascii(data.scanLines[data.scanLineCount++], sizeof data.scanLines[0], l | "");
+    }
+    const char *action = out["action"] | "none";
+    snprintf(scanActionKind, sizeof scanActionKind, "%s", action);
+    scanItemCount = 0;
+    for (JsonObject it : out["items"].as<JsonArray>()) {
+      if (scanItemCount == 24) break;
+      ScanItemRow &row = scanItems[scanItemCount++];
+      snprintf(row.foodId, sizeof row.foodId, "%s", it["foodId"] | "");
+      snprintf(row.amount, sizeof row.amount, "%s", it["amount"] | "1");
+      snprintf(row.unit, sizeof row.unit, "%s", it["unit"] | "PIECE");
+    }
+    data.scanAction = !scanItemCount ? 0 : !strcmp(action, "list") ? 2 : !strcmp(action, "kitchen") ? 1 : 0;
+    data.scan = Job::Done;
+  } else {
+    data.scan = Job::Failed;
+  }
+  unlockData();
+}
+
+void scanApply() {
+  char d[12] = "";
+  if (clockSet()) today(d, sizeof d);
+  int done = 0;
+  for (int i = 0; i < scanItemCount; ++i) {
+    JsonDocument vars, out;
+    JsonObject in = vars["i"].to<JsonObject>();
+    in["foodId"] = scanItems[i].foodId;
+    in["unit"] = scanItems[i].unit;
+    in["idempotencyKey"] = key("scan", scanItems[i].foodId);
+    bool good;
+    if (!strcmp(scanActionKind, "list")) {
+      in["quantity"] = scanItems[i].amount;
+      in["shoppingListId"] = data.shoppingListId;
+      good = data.shoppingListId[0] && call(Q_ADD_TO_LIST, vars, out) == Result::Ok;
+    } else {
+      in["amount"] = scanItems[i].amount;
+      if (d[0]) in["purchaseDate"] = d;
+      good = ok(call(Q_ADD_STOCK, vars, out), out, "addStock", "InventoryMutationSuccessType");
+    }
+    done += good;
+  }
+  if (done) { syncKitchen(); syncShopping(); }
+  lockData();
+  data.scanApply = done ? Job::Done : Job::Failed;
+  unlockData();
+}
+
+// ---- Pairing with the Remi app: the device shows a code, the person types it in the app ----
+bool pairWithApp() {
+  JsonDocument vars, out;
+  vars["n"] = "Remi kitchen";
+  if (post(Q_START_PAIRING, vars, out, false) != Result::Ok) return false;
+  String id = out["data"]["startDevicePairing"]["pairingId"] | "";
+  String secret = out["data"]["startDevicePairing"]["secret"] | "";
+  lockData();
+  snprintf(data.pairCode, sizeof data.pairCode, "%s", (const char *)(out["data"]["startDevicePairing"]["code"] | ""));
+  data.link = Link::AuthFailed;
+  unlockData();
+  Serial.printf("Pair this Remi in the app with code %s\n", data.pairCode);
+  uint32_t until = millis() + uint32_t(out["data"]["startDevicePairing"]["expiresInSeconds"] | 600) * 1000;
+  while (int32_t(until - millis()) > 0) {
+    delay(3000);
+    JsonDocument v, o;
+    v["id"] = id;
+    v["s"] = secret;
+    if (post(Q_CLAIM_PAIRING, v, o, false) != Result::Ok) continue;
+    JsonObject c = o["data"]["claimDevicePairing"];
+    if (c["status"] == "EXPIRED") break;
+    if (c["status"] == "PAIRED") {
+      refreshToken = c["refreshToken"].as<const char *>();
+      householdId = c["householdId"].as<const char *>();
+      prefs.putString("refresh", refreshToken);
+      prefs.putString("hh", householdId);
+      lockData(); data.pairCode[0] = 0; data.link = Link::Connecting; unlockData();
+      return true;
+    }
+  }
+  lockData(); data.pairCode[0] = 0; unlockData();
+  return false;
+}
+
 void startSetupNetwork() {
   setupMode = true;
   WiFi.mode(WIFI_AP);
@@ -585,6 +745,7 @@ bool connectWifi() {
 void task(void *) {
   prefs.begin("remi", false);
   refreshToken = prefs.getString("refresh", "");
+  householdId = prefs.getString("hh", "");
   if (!cfg.ssid.length() || !connectWifi()) {
     startSetupNetwork();  // no Wi-Fi saved, or it can't be reached: let a phone set it up
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
@@ -592,7 +753,11 @@ void task(void *) {
   configTzTime(cfg.tz.c_str(), "pool.ntp.org", "time.google.com");
   for (int i = 0; i < 20 && !clockSet(); ++i) delay(250);  // Today needs the date
   if (!cfg.apiUrl.length()) setLink(Link::AuthFailed);
-  else syncAll();
+  else {
+    while (!refreshToken.length() && !cfg.password.length())  // no account on the device: pair from the app
+      if (!pairWithApp()) delay(5000);
+    syncAll();
+  }
   uint32_t lastSync = millis();
   for (;;) {
     Cmd cmd;
@@ -608,6 +773,9 @@ void task(void *) {
       case Request::KitchenToss: kitchenAction(cmd.arg, false); break;
       case Request::SearchFoods: searchFoods(); break;
       case Request::AddToList: addToList(cmd.arg); break;
+      case Request::Scan: scan(cmd.arg); break;
+      case Request::ScanApply: scanApply(); break;
+      case Request::Ask: ask(); break;
     }
   }
 }
@@ -627,6 +795,9 @@ void backendRequest(Request r, int arg) {
     if (r == Request::KitchenUse || r == Request::KitchenToss) data.kitchenAction = Job::Failed;
     if (r == Request::SearchFoods) data.search = Job::Failed;
     if (r == Request::AddToList) data.addItem = Job::Failed;
+    if (r == Request::Scan) data.scan = Job::Failed;
+    if (r == Request::ScanApply) data.scanApply = Job::Failed;
+    if (r == Request::Ask) data.ask = Job::Failed;
     unlockData();
     return;
   }

@@ -19,6 +19,7 @@ bool localTime(struct tm *out) {
   gmtime_r(&t, out);
   return true;
 }
+bool cameraPreview(uint16_t *, int, int, int, int) { return false; }
 void lockData() {}
 void unlockData() {}
 void playSfx(Sfx s) {

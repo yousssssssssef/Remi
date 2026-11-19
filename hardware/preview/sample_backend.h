@@ -58,6 +58,7 @@ inline void sampleData() {
   data.kcal = 1240; data.kcalTarget = 2000; data.protein = 62; data.proteinTarget = 110; data.mealsLogged = 2;
   copy(data.shoppingListId, 40, "list-1");
   copy(data.remoteUrl, 48, "http://192.168.1.42");
+  data.hasCamera = true;  // simulated: the Scan page shows a placeholder viewfinder
 }
 
 inline int recipeIndex(const char *id) {
@@ -107,6 +108,26 @@ inline void finishPending() {
       data.pickCount = 4;
       for (int j = 0; j < 4; ++j) { snprintf(data.picks[j].foodId, 40, "pick-%d", j); copy(data.picks[j].name, 32, found[j]); copy(data.picks[j].unit, 12, "LITER"); }
       data.search = Job::Done;
+    }
+    if (p.r == Request::Scan) {
+      static const char *titles[] = {"Greek yogurt, 500 g", "Per 100 g", "Shopping list: 4 items", "Receipt: 5 foods"};
+      static const char *lines[4][5] = {{"Barcode 5201054017845", "97 kcal \x7f 10 g protein", "Fat 2 g \x7f carbs 4 g", "Good with your spinach", ""},
+                                        {"245 kcal", "Protein 12 g", "Carbs 30 g \x7f sugar 6 g", "Fat 8 g \x7f salt 0.9 g", ""},
+                                        {"Eggs", "Milk", "Basil", "Lemons", ""},
+                                        {"Tomatoes 6 pcs", "Chicken breast 500 g", "Milk 1 L", "Baby spinach 200 g", "Greek yogurt 2 pcs"}};
+      static const int counts[] = {4, 4, 4, 5};
+      static const uint8_t actions[] = {1, 0, 2, 1};
+      int m = data.scanMode & 3;
+      copy(data.scanTitle, 48, titles[m]);
+      data.scanLineCount = counts[m];
+      for (int j = 0; j < counts[m]; ++j) copy(data.scanLines[j], 44, lines[m][j]);
+      data.scanAction = actions[m];
+      data.scan = Job::Done;
+    }
+    if (p.r == Request::ScanApply) data.scanApply = Job::Done;
+    if (p.r == Request::Ask) {
+      copy(data.askReply, 300, "You've got spinach that needs using and eggs, so a spinach omelette is perfect tonight: ten minutes, and it uses the spinach before it turns.");
+      data.ask = Job::Done;
     }
     if (p.r == Request::AddToList) {
       if (data.shopCount < MAX_SHOP) {

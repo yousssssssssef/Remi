@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include "app_data.h"
 #include "backend.h"
+#include "camera.h"
 
 namespace {
 
@@ -32,12 +33,16 @@ button.alt{background:#fff;color:var(--ink)}button:active{transform:scale(.97)}
 form{display:flex;gap:8px;width:min(100%,420px)}input{flex:1;min-width:0;font:16px system-ui;border:0;border-radius:14px;padding:12px 14px}
 form button{flex:0 0 auto;padding:0 18px}#status{font-size:13px;min-height:18px}
 a{color:var(--cobalt);font-weight:600}
+#snap{width:min(100%,420px);display:flex;flex-direction:column;gap:8px}#snap .row{width:100%}#snap button{font-size:14px;padding:0 6px}
 </style></head><body>
 <h1>Remi remote</h1><p class="hint">Turn the knob, tap it to press, hold it to go back.<br>On a Mac: arrow keys, Space, Esc.</p>
 <div id="knob" aria-label="Remi knob" role="slider"><div id="dot"></div></div>
 <div class="row"><button data-k="l">Left</button><button data-k="p">Press</button><button data-k="r">Right</button><button class="alt" data-k="h">Hold</button></div>
 <form id="add"><input name="q" placeholder="Add to shopping list, e.g. milk" autocomplete="off"><button>Add</button></form>
 <form id="ask"><input name="q" placeholder="Ask Remi, e.g. what can I cook?" autocomplete="off"><button>Ask</button></form>
+<section id="snap"><p><b>Scan with your phone</b></p>
+<div class="row"><button class="alt" data-m="0">Barcode</button><button class="alt" data-m="1">Label</button><button class="alt" data-m="2">List</button><button class="alt" data-m="3">Receipt</button></div>
+<input id="cam" type="file" accept="image/*" capture="environment" hidden></section>
 <p id="status"></p><p class="hint"><a href="/setup">Wi-Fi and account setup</a></p>
 <script>
 const st=document.getElementById('status');let chain=Promise.resolve();
@@ -58,6 +63,16 @@ addEventListener('keydown',e=>{if(e.target.tagName=='INPUT')return;const k={Arro
 if(k){e.preventDefault();if(k=='l')angle-=18;if(k=='r')angle+=18;knob.style.rotate=angle+'deg';key(k)}});
 for(const id of['add','ask'])document.getElementById(id).onsubmit=e=>{e.preventDefault();const i=e.target.q;if(!i.value.trim())return;
 send('/text?kind='+(id=='add'?'a':'q')+'&q='+encodeURIComponent(i.value.trim()));i.value='';i.blur()};
+// Phone camera: shrink to 1024 px JPEG on the phone so the upload stays small, then Remi reads it.
+let mode=0;const cam=document.getElementById('cam');
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{mode=b.dataset.m;cam.click()});
+cam.onchange=async()=>{const f=cam.files[0];cam.value='';if(!f)return;st.textContent='Sending to Remi...';
+try{const img=await createImageBitmap(f);const s=Math.min(1,1024/Math.max(img.width,img.height));
+const c=document.createElement('canvas');c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);
+c.getContext('2d').drawImage(img,0,0,c.width,c.height);const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+const fd=new FormData();fd.append('photo',blob,'photo.jpg');
+const r=await fetch('/photo?mode='+mode,{method:'POST',body:fd});st.textContent=r.ok?'Remi is reading it':'Remi couldn\'t take the photo'}
+catch(e){st.textContent='Can\'t reach Remi'}};
 </script></body></html>)HTML";
 
 String esc(const String &s) {
@@ -70,6 +85,48 @@ String esc(const String &s) {
     else o += c;
   }
   return o;
+}
+
+// One photo from the phone waits here until the backend task takes it for reading.
+SemaphoreHandle_t photoLock;
+Photo pending{nullptr, 0, false};
+uint8_t *upload = nullptr;
+size_t uploadLen = 0, uploadCap = 0;
+bool uploadPng = false;
+
+void handlePhotoChunk() {
+  HTTPUpload &u = server.upload();
+  if (u.status == UPLOAD_FILE_START) {
+    free(upload);
+    uploadCap = psramFound() ? 3 * 1024 * 1024 : 200 * 1024;  // shortcut: no PSRAM caps photos at 200 KB; the page sends ~150 KB
+    upload = (uint8_t *)(psramFound() ? ps_malloc(uploadCap) : malloc(uploadCap));
+    uploadLen = 0;
+    uploadPng = u.type == "image/png";
+  } else if (u.status == UPLOAD_FILE_WRITE && upload) {
+    if (uploadLen + u.currentSize > uploadCap) { free(upload); upload = nullptr; return; }  // too big: drop it
+    memcpy(upload + uploadLen, u.buf, u.currentSize);
+    uploadLen += u.currentSize;
+  } else if (u.status == UPLOAD_FILE_ABORTED) {
+    free(upload); upload = nullptr;
+  }
+}
+
+void push(char kind, const String &text);
+
+void handlePhotoDone() {
+  int mode = server.arg("mode").toInt();
+  if (!upload || !uploadLen || mode < 0 || mode > 3) {
+    free(upload); upload = nullptr;
+    server.send(400, "text/plain", "Send one photo under 3 MB");
+    return;
+  }
+  xSemaphoreTake(photoLock, portMAX_DELAY);
+  free(pending.bytes);  // a newer photo replaces one that wasn't read yet
+  pending = {upload, uploadLen, uploadPng};
+  xSemaphoreGive(photoLock);
+  upload = nullptr;
+  push('s', String(mode));
+  server.send(204);
 }
 
 void push(char kind, const String &text = "") {
@@ -128,6 +185,7 @@ void task(void *) {
     if ((kind == "a" || kind == "q") && q.length() && q.length() < 48) { push(kind[0], q); server.send(204); }
     else server.send(400, "text/plain", "kind must be a or q, and q 1-47 characters");
   });
+  server.on("/photo", HTTP_POST, handlePhotoDone, handlePhotoChunk);
   server.on("/setup", HTTP_GET, handleSetupPage);
   server.on("/setup", HTTP_POST, handleSetupSave);
   server.onNotFound([] {  // phones probing for a captive portal land on the remote
@@ -146,7 +204,17 @@ void task(void *) {
 
 void remoteBegin() {
   events = xQueueCreate(16, sizeof(RemoteEvent));
+  photoLock = xSemaphoreCreateMutex();
   xTaskCreatePinnedToCore(task, "remi-remote", 6144, nullptr, 1, nullptr, 0);
 }
 
 bool remoteNext(RemoteEvent &event) { return events && xQueueReceive(events, &event, 0) == pdTRUE; }
+
+bool takePhoto(Photo &photo) {
+  if (!photoLock) return false;
+  xSemaphoreTake(photoLock, portMAX_DELAY);
+  photo = pending;
+  pending = {nullptr, 0, false};
+  xSemaphoreGive(photoLock);
+  return photo.bytes != nullptr;
+}

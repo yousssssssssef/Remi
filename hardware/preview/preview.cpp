@@ -21,6 +21,7 @@ bool localTime(struct tm *out) {
   gmtime_r(&t, out);
   return true;
 }
+bool cameraPreview(uint16_t *, int, int, int, int) { return false; }
 void lockData() {}
 void unlockData() {}
 void playSfx(Sfx s) { synth::play(s); }
@@ -60,8 +61,15 @@ int main(int argc, char **argv) {
       {45000, R, "21-add-to-list"}, {45600, P, nullptr},
       {47000, LP, "22-added"},
       {47800, LP, nullptr, nullptr, "what can I cook tonight?"},              // phone remote: a question
-      {50600, LP, "23-typed-question"}};
-  const uint32_t END = 52000;
+      {50600, LP, "23-typed-question"},
+      {51400, R, nullptr}, {52600, P, "24-scan"}, {53400, R, nullptr}, {54000, I::Left, "25-scan-modes"},
+      {54600, P, nullptr}, {55800, P, "26-viewfinder"}, {57200, P, "27-scan-result"},
+      {58600, R, "28-scan-saved"},                                            // -> Connect, then leave it alone
+      {105500, I::Left, "29-ambient"}, {106400, I::Left, "30-woke-up"},
+      {107000, R, nullptr}, {107150, R, nullptr}, {107300, R, nullptr}, {107450, R, nullptr},
+      {107600, R, nullptr}, {107750, R, nullptr}, {107900, R, nullptr},
+      {109000, LP, "31-pairing-code"}};  // first run with no account: the code to type in the app
+  const uint32_t END = 109500;
   FILE *video = fopen((out + "/frames.rgb").c_str(), "wb");
   std::vector<int16_t> audio;
   std::vector<int16_t> chunk;
@@ -70,6 +78,7 @@ int main(int argc, char **argv) {
   ui::begin();
   for (uint32_t frame = 0; simMs < END; ++frame) {
     simMs = uint32_t(frame * 1000.0 / 30.0 + 0.5);
+    if (simMs >= 107000 && simMs < 107040) { lockData(); snprintf(data.pairCode, sizeof data.pairCode, "482913"); unlockData(); }
     while (next < script.size() && script[next].at <= simMs) {
       if (script[next].shot) {  // save the screen as it looks right before this input
         ui::render();

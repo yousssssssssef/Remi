@@ -7,7 +7,7 @@
 namespace gfx {
 
 constexpr int W = 128, H = 160;
-extern uint16_t fb[W * H];
+extern uint16_t *const fb;  // W * H pixels, RGB565 big-endian; on the heap so it stays out of static DRAM (the CAM needs that room)
 
 constexpr uint16_t rgb(uint32_t hex) {
   return uint16_t(((hex >> 8) & 0xF800) | ((hex >> 5) & 0x07E0) | ((hex >> 3) & 0x001F));

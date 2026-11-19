@@ -18,8 +18,10 @@ constexpr uint32_t UI_APPEAR_MS = 380;                  // Home content fades/ri
 constexpr uint32_t UI_APPEAR_AT = BOOT_MS - 140;
 constexpr uint32_t PAGE_SLIDE_MS = 300, MODE_FADE_MS = 200, LONG_TOAST_MS = 2600;
 
-enum Page { HOME, TODAY, KITCHEN, BOUGHT, COOK, ASK, CONNECT, PAGE_COUNT };
-enum class Mode { Top, List, Working, Done, Recipe, Steps, Finished, Sheet, Pick, Answer };
+enum Page { HOME, TODAY, KITCHEN, BOUGHT, COOK, ASK, SCAN, CONNECT, PAGE_COUNT };
+enum class Mode { Top, List, Working, Done, Recipe, Steps, Finished, Sheet, Pick, Answer, Viewfinder, Result };
+const Mask *const RAIL[PAGE_COUNT] = {&RAIL_HOME, &RAIL_TODAY, &RAIL_KITCHEN, &RAIL_BAG, &RAIL_COOK, &RAIL_ASK, &RAIL_SCAN, &RAIL_LINK};
+constexpr uint32_t AMBIENT_AFTER_MS = 45000;   // idle time before the fridge (ambient) screen
 
 struct Tween {
   float from = 0, to = 0;
@@ -58,6 +60,14 @@ uint32_t toastStart = 0, toastUntil = 0;
 uint32_t doneAt = 0;
 
 int sheetSel = 0;  // Kitchen: Used it / Threw it out / Cancel
+// Living Remi: where his eyes look (follows the knob, wanders when idle) and the fridge screen.
+float lookX = 0, lookY = 0, lookTargetX = 0, lookTargetY = 0;
+uint32_t lookNext = 0, lastInputMs = 0, ambientAt = 0, wakeAt = 0;
+bool ambient = false;
+int backHints = 0;  // "hold to go back" shows only the first few times
+const char *const SCAN_MODES[] = {"Barcode", "Nutrition label", "Shopping list", "Receipt"};
+const char *const SCAN_HINTS[] = {"Product facts, add it", "Calories and macros", "Handwritten or printed", "Put away a whole shop"};
+const Mask *const SCAN_ICONS[] = {&ICON_BARCODE, &ICON_LABEL, &ICON_LIST, &ICON_RECEIPT};
 char answer[300] = "";
 const char *const QUESTIONS[] = {"What can I cook?", "What should I use first?", "What's on my list?",
                                  "What's planned today?", "How am I doing today?"};
@@ -147,6 +157,7 @@ const char *pageTitle(int p, char *buf, size_t n) {
   if (p == TODAY) return here ? "Planned today" : "Today";
   if (p == KITCHEN) return "Kitchen";
   if (p == ASK) return "Ask Remi";
+  if (p == SCAN) return here ? SCAN_MODES[data.scanMode] : "Scan";
   if (p == CONNECT) return "Connect";
   if (p == BOUGHT) return !here ? "Just bought" : mode == Mode::Pick ? "Add to list" : "Shopping list";
   if (p == COOK) {
@@ -160,7 +171,7 @@ void drawHeader(uint32_t now, uint8_t a) {
   setOrigin(0, 0);
   int bounce = (now < speakUntil) ? int(2.5f * fabsf(sinf(now / 95.f))) : 0;
   const Mask &face = now < blinkUntil ? AVATAR_BLINK : AVATAR_OPEN;
-  drawMask(face, AVATAR_X, AVATAR_Y - bounce, COBALT, 255);  // the face is already on screen from the intro
+  drawMask(face, AVATAR_X + int(roundf(lookX * 0.5f)), AVATAR_Y - bounce + int(roundf(lookY * 0.4f)), COBALT, 255);
   // Titles cross-fade while pages slide.
   float pos = pagePos.value(now);
   char buf[32];
@@ -186,19 +197,20 @@ void drawHeader(uint32_t now, uint8_t a) {
   }
 }
 
+// Bottom rail: one drawn icon per page. The white pill slides with the knob so you always know
+// where you are and what's next. Sub-screens hide it (they're reached with a press).
 void drawFooter(uint8_t a) {
   setOrigin(0, 0);
   if (mode != Mode::Top) {
-    textCentered(FONT_SMALL, 64, 156, "Hold the knob to go back", INK, A(120, a));
+    if (backHints <= 3) textCentered(FONT_SMALL, 64, 156, "Hold the knob to go back", INK, A(170, a));
     return;
   }
   float pos = pagePos.value(nowMs());
-  int x = 64 - (PAGE_COUNT * 9 + 6) / 2;
+  const int slot = 16, y = 146;
+  fillRoundRect(int(roundf(pos * slot)) + 1, y, slot - 2, 13, 6, WHITE, a);
   for (int p = 0; p < PAGE_COUNT; ++p) {
-    float act = 1 - fminf(1, fabsf(pos - p));  // 1 = this page is showing
-    int w = 4 + int(8 * act + .5f);
-    fillRoundRect(x, 151, w, 4, 2, COBALT, A(uint8_t(80 + 175 * act), a));
-    x += w + 5;
+    float act = 1 - fminf(1, fabsf(pos - p));
+    drawMask(*RAIL[p], p * slot + 3, y + 2, act > .5f ? COBALT : INK, A(uint8_t(110 + 145 * act), a));
   }
 }
 
@@ -214,28 +226,27 @@ void homePage(uint8_t a, uint32_t now) {
   else snprintf(buf, sizeof buf, "Setting the clock...");
   textCentered(FONT_LABEL, 64, 80, buf, INK, A(200, a));
 
-  drawCard(8, 87, 112, 59, a);
-  drawMask(ICON_HOME, 16, 93, COBALT, a);
-  text(FONT_SMALL, 33, 103, "In your kitchen", INK, A(170, a));
+  drawCard(8, 85, 112, 55, a);
   bool syncing = refreshAsked && now - refreshAsked < 4000 && data.syncedAtMs < refreshAsked;
   if (data.foods >= 0) {
     snprintf(buf, sizeof buf, "%d", data.foods);
-    int w = text(FONT_FIGURE, 16, 126, buf, COBALT, a);
-    text(FONT_LABEL, 19 + w, 126, data.foods == 1 ? "food" : "foods", INK, a);
-    if (syncing) textRight(FONT_SMALL, 112, 126, "Syncing...", INK, A(140, a));
-    // Freshness pill on its own row so it never covers the count.
+    int w = text(FONT_FIGURE, 16, 113, buf, COBALT, a);
+    text(FONT_LABEL, 21 + w, 101, data.foods == 1 ? "food" : "foods", INK, a);
+    text(FONT_SMALL, 21 + w, 113, "in the kitchen", INK, A(210, a));
     const char *label = buf;
     bool soon = data.useFirst > 0;
-    if (soon) snprintf(buf, sizeof buf, "%d to use first", data.useFirst);
+    if (syncing) label = "Syncing...";
+    else if (soon) snprintf(buf, sizeof buf, "%d to use first", data.useFirst);
     else label = "All fresh";
     int pw = textWidth(FONT_SMALL, label) + 20;
-    fillRoundRect(15, 130, pw, 12, 6, soon ? PALE_PINK : PALE_LEMON, a);
-    drawMask(soon ? ICON_CLOCK : ICON_LEAF, 19, 131, soon ? PINK_TEXT : COBALT, a);
-    text(FONT_SMALL, 31, 140, label, soon ? PINK_TEXT : COBALT, a);
+    fillRoundRect(15, 121, pw, 13, 6, soon ? PALE_PINK : PALE_LEMON, a);
+    drawMask(soon ? ICON_CLOCK : ICON_LEAF, 19, 122, soon ? PINK_TEXT : COBALT, a);
+    text(FONT_SMALL, 31, 131, label, soon ? PINK_TEXT : COBALT, a);
   } else {
-    const char *msg = data.link == Link::Offline ? "Offline" : data.link == Link::AuthFailed ? "Can't sign in" : "Connecting...";
-    text(FONT_FIGURE, 16, 126, "--", COBALT, A(110, a));
-    text(FONT_SMALL, 16, 140, msg, data.link == Link::Connecting ? INK : PINK_TEXT, A(190, a));
+    const char *msg = data.pairCode[0] ? "Pair on Connect" : data.link == Link::Offline ? "Offline" : data.link == Link::AuthFailed ? "Not signed in"
+                      : data.link == Link::Setup ? "Set up on Connect" : "Connecting...";
+    text(FONT_FIGURE, 16, 113, "--", COBALT, A(110, a));
+    text(FONT_LABEL, 16, 131, msg, data.link == Link::Connecting ? INK : PINK_TEXT, a);
   }
 }
 
@@ -250,12 +261,12 @@ void boughtPage(uint8_t a, uint32_t now) {
     }
     if (data.shopCount == 0) {
       textCentered(FONT_BODY, 64, 99, "Your list is empty.", INK, A(190, a));
-      textCentered(FONT_SMALL, 64, 113, "Add items in the Remi app", INK, A(140, a));
+      textCentered(FONT_SMALL, 64, 113, "Type \"add milk\" on your phone", INK, A(200, a));
       return;
     }
     snprintf(buf, sizeof buf, "%d item%s on your list", data.shopCount, data.shopCount == 1 ? "" : "s");
     textCentered(FONT_BODY, 64, 99, buf, INK, A(190, a));
-    drawPill(18, 114, 92, 20, COBALT, "Press to put away", WHITE, a, FONT_SMALL);
+    drawPill(18, 112, 92, 20, COBALT, "Press to put away", WHITE, a, FONT_SMALL);
     return;
   }
   if (mode == Mode::Working) {
@@ -337,17 +348,16 @@ void cookPage(uint8_t a, uint32_t now) {
       return;
     }
     Suggestion &s = data.suggestions[0];
-    textCentered(FONT_SMALL, 64, 72, "COOK NOW", PINK_TEXT, a);
     int n = wrap(FONT_TITLE, s.name, 112, st, ln, 2);
     for (int i = 0; i < n && i < 2; ++i) {
       char line[64];
       snprintf(line, sizeof line, "%.*s%s", ln[i], s.name + st[i], (i == 1 && n > 2) ? "..." : "");
-      textCentered(FONT_TITLE, 64, 88 + i * 15, line, INK, a);
+      textCentered(FONT_TITLE, 64, 80 + i * 15, line, INK, a);
     }
-    int y = n > 1 ? 118 : 104;
+    int y = n > 1 ? 110 : 96;
     snprintf(buf, sizeof buf, "%d min \x7f %d of %d ready", s.minutes, s.have, s.need);
-    textCentered(FONT_SMALL, 64, y, buf, INK, A(150, a));
-    drawPill(22, 124, 84, 20, COBALT, "More ideas", WHITE, a, FONT_SMALL);
+    textCentered(FONT_SMALL, 64, y, buf, s.have >= s.need ? COBALT : INK, A(220, a));
+    drawPill(22, 118, 84, 20, COBALT, "More ideas", WHITE, a, FONT_SMALL);
     return;
   }
   if (mode == Mode::List) {
@@ -475,11 +485,10 @@ void todayPage(uint8_t a, uint32_t now) {
     return;
   }
   drawCard(8, 27, 112, 62, a);
-  text(FONT_SMALL, 16, 38, "So far", INK, A(170, a));
   if (data.kcal >= 0) {
     if (data.kcalTarget > 0) {
       snprintf(buf, sizeof buf, "goal %d", data.kcalTarget);
-      textRight(FONT_SMALL, 112, 38, buf, INK, A(150, a));
+      textRight(FONT_SMALL, 112, 38, buf, INK, A(200, a));
     }
     snprintf(buf, sizeof buf, "%d", data.kcal);
     int w = text(FONT_FIGURE, 15, 61, buf, COBALT, a);
@@ -493,24 +502,18 @@ void todayPage(uint8_t a, uint32_t now) {
     text(FONT_FIGURE, 15, 61, "--", COBALT, A(110, a));
     text(FONT_SMALL, 16, 80, data.link == Link::Online ? "No meals logged yet" : "Waiting for Remi...", INK, A(160, a));
   }
-  text(FONT_SMALL, 10, 104, "PLANNED", PINK_TEXT, a);
-  if (!data.todayLoaded) { text(FONT_BODY, 10, 119, "Loading...", INK, A(150, a)); return; }
+  if (!data.todayLoaded) { text(FONT_BODY, 10, 108, "Loading...", INK, A(180, a)); return; }
   if (data.plannedCount == 0) {
-    text(FONT_BODY, 10, 119, "Nothing planned today", INK, A(190, a));
-    text(FONT_SMALL, 10, 133, "Plan meals in the Remi app", INK, A(140, a));
+    text(FONT_LABEL, 10, 106, "Nothing planned today", INK, a);
+    text(FONT_SMALL, 10, 120, "Plan meals in the Remi app", INK, A(200, a));
     return;
   }
   for (int i = 0; i < data.plannedCount && i < 2; ++i) {
     const PlannedMeal &m = data.planned[i];
-    int w = text(FONT_SMALL, 10, 119 + i * 14, MEAL_NAMES[m.mealType < 5 ? m.mealType : 4], PINK_TEXT, A(220, a));
-    textFit(FONT_LABEL, 14 + w, 119 + i * 14, 104 - w, m.name, INK, a);
+    int w = text(FONT_SMALL, 10, 106 + i * 15, MEAL_NAMES[m.mealType < 5 ? m.mealType : 4], PINK_TEXT, a);
+    textFit(FONT_LABEL, 14 + w, 106 + i * 15, 104 - w, m.name, INK, a);
   }
-  if (data.plannedCount > 2) {
-    snprintf(buf, sizeof buf, "+%d more \x7f press to cook", data.plannedCount - 2);
-    text(FONT_SMALL, 10, 146, buf, COBALT, a);
-  } else {
-    text(FONT_SMALL, 10, 146, "Press to cook it", COBALT, a);
-  }
+  text(FONT_SMALL, 10, 138, data.plannedCount > 2 ? "Press to see all and cook" : "Press to cook", COBALT, a);
 }
 
 void kitchenRow(const KitchenItem &it, int y, uint8_t a) {
@@ -544,9 +547,9 @@ void kitchenPage(uint8_t a, uint32_t now) {
       textCentered(FONT_SMALL, 64, 70, "Put away groceries to fill it", INK, A(150, a));
       return;
     }
-    drawCard(6, 60, 116, 74, a);
-    for (int i = 0; i < data.kitchenCount && i < 3; ++i) kitchenRow(data.kitchen[i], 63 + i * 23, a);
-    text(FONT_SMALL, 10, 146, "Press to see everything", COBALT, a);
+    drawCard(6, 58, 116, 72, a);
+    for (int i = 0; i < data.kitchenCount && i < 3; ++i) kitchenRow(data.kitchen[i], 60 + i * 23, a);
+    text(FONT_SMALL, 10, 141, "Press to see everything", COBALT, a);
     return;
   }
   drawCard(6, 26, 116, 120, a);
@@ -584,6 +587,14 @@ void askPage(uint8_t a, uint32_t now) {
     return;
   }
   if (page == ASK && mode == Mode::Answer) {
+    if (data.ask == Job::Working) {  // thinking: Remi looks up, dots pulse
+      textCentered(FONT_LABEL, 64, 60, data.askQuestion, INK, A(200, a));
+      spinner(84, now, a);
+      textCentered(FONT_SMALL, 64, 106, "Remi is thinking...", INK, A(200, a));
+      return;
+    }
+    if (data.ask == Job::Done) { snprintf(answer, sizeof answer, "%s", data.askReply); data.ask = Job::Idle; modeAt = now; speakUntil = now + 2400; playSfx(Sfx::Voice); }
+    if (data.ask == Job::Failed) { data.ask = Job::Idle; modeAt = now; speakUntil = now + 2400; playSfx(Sfx::Voice); }  // local answer stays
     int st[9], ln[9];
     int n = wrap(FONT_SMALL, answer, 96, st, ln, 9);
     if (n > 9) n = 9;
@@ -606,8 +617,8 @@ void askPage(uint8_t a, uint32_t now) {
   fillCircle(64, 62, 27, WHITE, a);
   drawMask(ICON_MIC_L, 47, 45, COBALT, a);
   textCentered(FONT_TITLE, 64, 108, "Ask Remi", INK, a);
-  textCentered(FONT_SMALL, 64, 122, "Press for questions", INK, A(150, a));
-  textCentered(FONT_SMALL, 64, 134, "or type on your phone", INK, A(150, a));
+  textCentered(FONT_SMALL, 64, 122, "Press for questions", INK, A(210, a));
+  textCentered(FONT_SMALL, 64, 134, "or type one on your phone", INK, A(210, a));
 }
 
 // QR code for the phone remote (or the setup Wi-Fi), regenerated only when the text changes.
@@ -617,6 +628,15 @@ char qrText[96] = "";
 bool qrOk = false;
 
 void connectPage(uint8_t a, uint32_t now) {
+  if (data.pairCode[0]) {  // first run: pair from the Remi app, like signing in a TV
+    drawCard(8, 30, 112, 62, a);
+    textCentered(FONT_SMALL, 64, 46, "Pairing code", INK, A(160, a));
+    textCentered(FONT_FIGURE, 64, 78, data.pairCode, COBALT, a);
+    textCentered(FONT_BODY, 64, 110, "In the Remi app:", INK, a);
+    textCentered(FONT_SMALL, 64, 124, "More > Pair a Remi", INK, A(190, a));
+    textCentered(FONT_SMALL, 64, 136, "and type this code", INK, A(190, a));
+    return;
+  }
   char want[96];
   bool setup = data.setupSsid[0];
   if (setup) snprintf(want, sizeof want, "WIFI:T:WPA;S:%s;P:%s;;", data.setupSsid, data.setupPass);
@@ -630,12 +650,12 @@ void connectPage(uint8_t a, uint32_t now) {
     textCentered(FONT_BODY, 64, 86, "Starting Wi-Fi...", INK, A(180, a));
     return;
   }
-  int scale = 3, size = qr.size * scale, x0 = 64 - size / 2, y0 = 30;  // version 3: 29 modules, 87 px
+  int scale = 3, size = qr.size * scale, x0 = 64 - size / 2, y0 = 28;  // version 3: 29 modules, 87 px
   fillRoundRect(x0 - 6, y0 - 6, size + 12, size + 12, 8, WHITE, a);
   for (int y = 0; y < qr.size; ++y)
     for (int x = 0; x < qr.size; ++x)
       if (qrcode_getModule(&qr, x, y)) fillRect(x0 + x * scale, y0 + y * scale, scale, scale, INK, a);
-  int ty = y0 + size + 17;
+  int ty = y0 + size + 15;
   if (setup) {
     textCentered(FONT_SMALL, 64, ty, "Scan to join Remi's Wi-Fi,", INK, A(190, a));
     textCentered(FONT_SMALL, 64, ty + 10, "then open 192.168.4.1", COBALT, a);
@@ -666,7 +686,7 @@ void pickOverlay(uint8_t a, uint32_t now) {  // Just bought page, Pick mode: cho
   }
 }
 
-// Answers from what Remi already knows about your kitchen. The microphone and a language model come later.
+// Local answers from what Remi already knows about your kitchen: shown at once, and kept when the AI reply fails.
 void answerQuestion(int q) {
   char *o = answer;
   size_t n = sizeof answer;
@@ -724,6 +744,144 @@ int questionFor(const char *text) {  // typed questions: match a few keywords
   return -1;
 }
 
+// ---------------- Scan ----------------
+void viewfinder(uint32_t now, uint8_t a) {
+  const int x = 8, y = 26, w = 112, h = 92;
+  bool live = cameraPreview(fb, x, y, w, h);
+  if (!live) {  // no camera here (DevKit, simulator): a calm placeholder that still explains the step
+    fillRoundRect(x, y, w, h, 10, INK, a);
+    drawMask(*SCAN_ICONS[data.scanMode], 56, 52, WHITE, A(200, a));
+    textCentered(FONT_SMALL, 64, 92, data.hasCamera ? "Simulated camera" : "No camera on this board", WHITE, A(220, a));
+    textCentered(FONT_SMALL, 64, 104, data.hasCamera ? "Press to snap" : "Send a photo from your phone", PALE_LEMON, a);
+  }
+  // corner brackets and a sweeping line
+  const int L = 10;
+  for (int i = 0; i < 2; ++i) {
+    fillRect(x + 6, y + 6 + i * (h - 14), L, 2, WHITE, a); fillRect(x + w - 6 - L, y + 6 + i * (h - 14), L, 2, WHITE, a);
+    fillRect(x + 6 + i * (w - 14), y + 6, 2, L, WHITE, a); fillRect(x + 6 + i * (w - 14), y + h - 6 - L, 2, L, WHITE, a);
+  }
+  int sy = y + 10 + int((h - 20) * (0.5f + 0.5f * sinf(now / 450.f)));
+  fillRect(x + 10, sy, w - 20, 1, PINK, A(200, a));
+}
+
+void scanPage(uint8_t a, uint32_t now) {
+  bool here = page == SCAN;
+  if (!here || mode == Mode::Top) {
+    fillCircle(64, 58, 27, WHITE, a);
+    drawMask(ICON_CAMERA_L, 49, 43, COBALT, a);
+    textCentered(FONT_TITLE, 64, 104, "Scan", INK, a);
+    textCentered(FONT_SMALL, 64, 118, "Barcode, label or list", INK, A(210, a));
+    textCentered(FONT_SMALL, 64, 136, "Press to choose", COBALT, a);
+    return;
+  }
+  if (mode == Mode::List) {
+    drawCard(6, 26, 116, 116, a);
+    listScroll(4, 4, now);
+    fillRoundRect(10, 30 + int(roundf((selY - scrollY) * 27)), 108, 26, 8, PALE_LEMON, a);
+    for (int i = 0; i < 4; ++i) {
+      int y = 30 + i * 27;
+      drawMask(*SCAN_ICONS[i], 15, y + 5, COBALT, a);
+      text(FONT_LABEL, 37, y + 12, SCAN_MODES[i], INK, a);
+      textFit(FONT_SMALL, 37, y + 22, 80, SCAN_HINTS[i], INK, A(200, a));
+    }
+    return;
+  }
+  if (mode == Mode::Viewfinder) {
+    viewfinder(now, a);
+    if (data.scan == Job::Working) {
+      fillRoundRect(24, 126, 80, 18, 9, INK, a);
+      textCentered(FONT_SMALL, 64, 138, "Reading...", WHITE, a);
+    } else {
+      drawPill(20, 124, 88, 20, COBALT, data.hasCamera ? "Press to snap" : "Waiting for photo", WHITE, a, FONT_SMALL);
+    }
+    return;
+  }
+  // Result
+  drawCard(6, 26, 116, 98, a);
+  textFit(FONT_LABEL, 14, 42, 100, data.scanTitle, INK, a);
+  for (int i = 0; i < data.scanLineCount && i < 5; ++i) textFit(FONT_SMALL, 14, 58 + i * 12, 100, data.scanLines[i], INK, A(220, a));
+  if (data.scanApply == Job::Working) { spinner(136, now, a); return; }
+  if (data.scanAction == 1) drawPill(14, 128, 100, 18, COBALT, "Add to kitchen", WHITE, a, FONT_SMALL);
+  else if (data.scanAction == 2) drawPill(14, 128, 100, 18, COBALT, "Add to shopping list", WHITE, a, FONT_SMALL);
+  else textCentered(FONT_SMALL, 64, 140, "Press to scan again", COBALT, a);
+}
+
+// ---------------- Ambient: the fridge screen ----------------
+// After a quiet spell Remi becomes a fridge display: big clock, his face alive, one kitchen insight at a time.
+// At night (22:00-06:00) it turns navy, he sleeps, and the insight steps aside.
+constexpr uint16_t NAVY = rgb(0x0B1030);
+
+int insights(char out[][64], int max) {
+  int n = 0;
+  for (int i = 0; i < data.kitchenCount && n < max && data.kitchen[i].daysLeft <= 2; ++i) {
+    char name[32];
+    snprintf(name, sizeof name, "%s", data.kitchen[i].name);
+    if (name[0] >= 'A' && name[0] <= 'Z' && !(name[1] >= 'A' && name[1] <= 'Z')) name[0] = char(name[0] + 32);  // mid-sentence
+    snprintf(out[n++], 64, data.kitchen[i].daysLeft <= 0 ? "Use the %s today" : "Use the %s soon", name);
+  }
+  if (data.plannedCount && n < max) snprintf(out[n++], 64, "%s: %s", MEAL_NAMES[data.planned[0].mealType < 5 ? data.planned[0].mealType : 4], data.planned[0].name);
+  if (data.suggestionCount && n < max) snprintf(out[n++], 64, "You could make %s", data.suggestions[0].name);
+  if (data.shopCount && n < max) snprintf(out[n++], 64, "%d thing%s on your list", data.shopCount, data.shopCount == 1 ? "" : "s");
+  if (data.kcal > 0 && n < max) snprintf(out[n++], 64, "%d kcal so far today", data.kcal);
+  if (!n) snprintf(out[n++], 64, "Turn me to get cooking");
+  return n;
+}
+
+void drawAmbient(uint32_t now) {
+  struct tm t;
+  bool clock = localTime(&t);
+  bool night = clock && (t.tm_hour >= 22 || t.tm_hour < 6);
+  uint16_t bg = night ? NAVY : BG, fg = night ? WHITE : COBALT, ink = night ? PALE_LEMON : INK;
+  float in = easeOut((now - ambientAt) / 600.f);
+  fill(blend(BG, bg, uint8_t(255 * in)));
+  uint8_t a = uint8_t(255 * in);
+  char buf[64];
+  if (clock) snprintf(buf, sizeof buf, "%02d:%02d", t.tm_hour, t.tm_min);
+  else snprintf(buf, sizeof buf, "--:--");
+  textCentered(FONT_TIME, 64, 40, buf, fg, a);
+  // face: breathing bob, wandering eyes, blinks; asleep at night
+  int bob = int(roundf(1.5f * sinf(now / 1100.f)));
+  int fy = BIG_FACE_Y + 8 + bob;
+  drawMask(BIG_FEATURES, BIG_FACE_X, fy, fg, a);
+  bool shut = night || now < blinkUntil;
+  drawMask(shut ? BIG_EYES_SHUT : BIG_EYES, BIG_FACE_X + int(roundf(lookX)), fy + int(roundf(lookY)), fg, a);
+  if (night) {  // little floating z's
+    for (int i = 0; i < 3; ++i) {
+      float ph = fmodf(now / 1600.f + i / 3.f, 1.f);
+      text(FONT_LABEL, 96 + i * 5, int(52 - ph * 18), "z", fg, uint8_t(a * (1 - ph)));
+    }
+    return;
+  }
+  char lines[6][64];
+  int n = insights(lines, 6);
+  uint32_t period = 6000, k = (now - ambientAt) / period;
+  float ph = float((now - ambientAt) % period) / period;
+  uint8_t ta = uint8_t(a * fminf(1, fminf(ph / .08f, (1 - ph) / .08f)));  // crossfade between insights
+  int st[2], ln[2];
+  const char *msg = lines[k % n];
+  int m = wrap(FONT_LABEL, msg, 116, st, ln, 2);
+  if (m > 2) m = 2;
+  for (int i = 0; i < m; ++i) {
+    char l[64];
+    snprintf(l, sizeof l, "%.*s", ln[i], msg + st[i]);
+    textCentered(FONT_LABEL, 64, 140 + i * 13 - (m - 1) * 6, l, ink, ta);
+  }
+}
+
+void tickLook(uint32_t now) {  // eyes: follow the knob briefly, otherwise glance around now and then
+  if (now >= lookNext) {
+    static uint32_t seed = 12345;
+    seed = seed * 1103515245u + 12345u;
+    lookTargetX = float(int((seed >> 16) % 7) - 3);
+    lookTargetY = float(int((seed >> 20) % 3) - 1) * 0.8f;
+    if ((seed >> 24) % 3 == 0) lookTargetX = lookTargetY = 0;
+    lookNext = now + 1800 + (seed >> 8) % 2600;
+  }
+  float dt = fminf(0.1f, (now - lastFrameMs) / 1000.f), k = 1 - expf(-dt / 0.07f);  // quick saccade
+  lookX += (lookTargetX - lookX) * k;
+  lookY += (lookTargetY - lookY) * k;
+}
+
 void drawPages(uint32_t now, uint8_t a, int rise) {
   float pos = pagePos.value(now);
   for (int p = 0; p < PAGE_COUNT; ++p) {
@@ -743,6 +901,7 @@ void drawPages(uint32_t now, uint8_t a, int rise) {
     else if (p == BOUGHT) { if (page == BOUGHT && mode == Mode::Pick) pickOverlay(pa, now); else boughtPage(pa, now); }
     else if (p == COOK) cookPage(pa, now);
     else if (p == ASK) askPage(pa, now);
+    else if (p == SCAN) scanPage(pa, now);
     else connectPage(pa, now);
   }
   setOrigin(0, 0);
@@ -800,6 +959,19 @@ void tickTimers(uint32_t now) {
     playSfx(Sfx::Error);
     showToast("Couldn't add it");
   }
+  if (page == SCAN && mode == Mode::Viewfinder && (data.scan == Job::Done || data.scan == Job::Failed)) {
+    bool ok = data.scan == Job::Done;
+    data.scan = Job::Idle;
+    if (ok) { setMode(Mode::Result); playSfx(Sfx::Success); }
+    else { playSfx(Sfx::Error); showToast("Couldn't read that"); }
+  }
+  if (page == SCAN && mode == Mode::Result && data.scanApply != Job::Working && data.scanApply != Job::Idle) {
+    bool ok = data.scanApply == Job::Done;
+    data.scanApply = Job::Idle;
+    setMode(Mode::Top);
+    playSfx(ok ? Sfx::Success : Sfx::Error);
+    showToast(ok ? (data.scanAction == 2 ? "Added to your list" : "Added to your kitchen") : "Couldn't save it");
+  }
   if (page == COOK && mode == Mode::Recipe && data.recipe == Job::Failed) {
     setMode(Mode::List);
     playSfx(Sfx::Error);
@@ -852,9 +1024,21 @@ void begin() {
 bool inIntro() { return intro; }
 void toggleColorTest() { colorTest = !colorTest; }
 
+void photoArrived(int scanMode) {  // the phone remote sent a photo; the backend task is already reading it
+  uint32_t now = nowMs();
+  if (intro) bootMs = now - (UI_APPEAR_AT + UI_APPEAR_MS);
+  ambient = false;
+  lastInputMs = now;
+  data.scanMode = uint8_t(scanMode);
+  jumpTo(SCAN, now);
+  setMode(Mode::Viewfinder);
+}
+
 void textInput(TextKind kind, const char *text) {
   uint32_t now = nowMs();
   if (intro) bootMs = now - (UI_APPEAR_AT + UI_APPEAR_MS);
+  ambient = false;
+  lastInputMs = now;
   if (kind == TextKind::Add) {
     lockData();
     snprintf(data.pickQuery, sizeof data.pickQuery, "%s", text);
@@ -868,7 +1052,12 @@ void textInput(TextKind kind, const char *text) {
   } else {
     int q = questionFor(text);
     if (q < 0) snprintf(answer, sizeof answer, "I can tell you what to cook, what to use first, what's on your list, today's plan and how you're doing. Ask me one of those!");
-    else answerQuestion(q);
+    else answerQuestion(q);  // shown if the AI isn't reachable
+    lockData();
+    snprintf(data.askQuestion, sizeof data.askQuestion, "%s", text);
+    data.ask = Job::Working;
+    unlockData();
+    backendRequest(Request::Ask);
     jumpTo(ASK, now);
     setMode(Mode::Answer);
     speakUntil = now + 2400;
@@ -890,8 +1079,19 @@ void input(Input in) {
     }
     return;
   }
+  lastInputMs = now;
+  if (ambient) {  // first touch only wakes Remi up
+    ambient = false;
+    wakeAt = now;
+    jumpTo(HOME, now);
+    setMode(Mode::Top);
+    playSfx(Sfx::Hello);
+    return;
+  }
   if (alarm && (in == Input::Press || in == Input::LongPress)) { alarm = false; playSfx(Sfx::Back); return; }
   int dir = in == Input::Right ? 1 : in == Input::Left ? -1 : 0;
+  if (dir) { lookTargetX = 3.f * dir; lookTargetY = 0; lookNext = now + 900; }  // Remi glances the way you turn
+  if (in == Input::LongPress && mode != Mode::Top) ++backHints;
 
   if (mode == Mode::Top) {
     if (dir) { goPage(page + dir, now); return; }
@@ -915,9 +1115,11 @@ void input(Input in) {
       else playSfx(Sfx::Edge);
     }
     if (page == ASK) { setMode(Mode::List); sel = 0; selY = scrollY = 0; playSfx(Sfx::Select); }
+    if (page == SCAN) { setMode(Mode::List); sel = data.scanMode; selY = scrollY = 0; playSfx(Sfx::Select); }
     if (page == CONNECT) playSfx(Sfx::Edge);
     return;
   }
+
 
   // Generic list movement for the simple lists.
   auto move = [&](int count) {
@@ -925,6 +1127,29 @@ void input(Input in) {
     if (n < 0 || n >= count) playSfx(Sfx::Edge);
     else { sel = n; playSfx(Sfx::Tick); }
   };
+
+  if (page == SCAN) {
+    if (mode == Mode::List) {
+      if (dir) move(4);
+      else if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+      else { data.scanMode = uint8_t(sel); setMode(Mode::Viewfinder); playSfx(Sfx::Select); }
+    } else if (mode == Mode::Viewfinder) {
+      if (in == Input::LongPress) { setMode(Mode::List); playSfx(Sfx::Back); }
+      else if (in == Input::Press && data.hasCamera && data.scan != Job::Working) {
+        lockData(); data.scan = Job::Working; unlockData();
+        backendRequest(Request::Scan, data.scanMode);
+        playSfx(Sfx::TimerStart);  // shutter
+      }
+    } else if (mode == Mode::Result) {
+      if (in == Input::LongPress) { setMode(Mode::Top); playSfx(Sfx::Back); }
+      else if (in == Input::Press && data.scanAction && data.scanApply != Job::Working) {
+        lockData(); data.scanApply = Job::Working; unlockData();
+        backendRequest(Request::ScanApply);
+        playSfx(Sfx::Select);
+      } else if (in == Input::Press) { setMode(Mode::Viewfinder); playSfx(Sfx::Select); }
+    }
+    return;
+  }
 
   if (page == TODAY && mode == Mode::List) {
     if (dir) move(data.plannedCount);
@@ -1081,12 +1306,15 @@ void render() {
     drawHeader(now, uint8_t(255 * p));
     drawPages(now, uint8_t(255 * p), int(6 * (1 - p)));
     drawFooter(uint8_t(255 * p));
-    if (p >= 1) intro = false;
+    if (p >= 1) { intro = false; lastInputMs = now; }
     lastFrameMs = now;
     return;
   }
   tickTimers(now);
+  tickLook(now);
   if (colorTest) { drawColorTest(); lastFrameMs = now; return; }
+  if (!ambient && mode == Mode::Top && !timerOn && !alarm && now - lastInputMs > AMBIENT_AFTER_MS) { ambient = true; ambientAt = now; }
+  if (ambient) { lockData(); drawAmbient(now); unlockData(); lastFrameMs = now; return; }
   lockData();
   fill(BG);
   drawPages(now, 255, 0);

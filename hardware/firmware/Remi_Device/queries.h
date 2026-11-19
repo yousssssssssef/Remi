@@ -23,5 +23,9 @@ static const char Q_CONSUME[] = "mutation Use($i:InventoryStockInput!){consumeSt
 static const char Q_DISCARD[] = "mutation Toss($i:InventoryStockInput!){discardStock(input:$i){__typename}}";
 static const char Q_LOG_MEAL[] = "mutation Cooked($i:LogMealInputType!){logMeal(input:$i){__typename}}";
 static const char Q_ADD_TO_LIST[] = "mutation AddToList($i:AddToShoppingListInputType!){addToShoppingList(input:$i){id}}";
+static const char Q_START_PAIRING[] =
+    "mutation Pair($n:String!){startDevicePairing(deviceName:$n){pairingId code secret expiresInSeconds}}";
+static const char Q_CLAIM_PAIRING[] =
+    "mutation Claim($id:String!,$s:String!){claimDevicePairing(pairingId:$id,secret:$s){status refreshToken householdId}}";
 static const char Q_MARK_BOUGHT[] =
     "mutation Bought($i:UpdateShoppingItemInputType!){updateShoppingListItem(input:$i){id status}}";

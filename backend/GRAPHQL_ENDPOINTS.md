@@ -850,6 +850,8 @@ type FoodCategory { id: ID! code: String! name: String! }
 |--------|------|---------|
 | `GET` | `/health/live` | Liveness |
 | `GET` | `/health/ready` | Readiness (DB, etc.) |
+| `POST` | `/device/ask` | Remi device: a question in, a short Claude reply out (see "Remi kitchen device") |
+| `POST` | `/device/scan?mode=` | Remi device: a photo in (JPEG/PNG body), the foods it shows out |
 
 ---
 
@@ -1082,3 +1084,32 @@ mutation ($input: ReceiveReceiptInput!) {
   - **Sending a different date:** it is kept as the person's, and `expiryEstimated` becomes `false`.
 
 See `docs/shelf-life.md`.
+
+
+## Remi kitchen device (`hardware/`)
+
+The ESP32 device signs in like any client (JWT plus `x-household-id`). It can also pair without a password, like a TV app.
+
+### Pairing
+
+| Operation | Auth | Purpose |
+|---|---|---|
+| `startDevicePairing(deviceName: String = "Remi"): DevicePairingType` | public | Returns `pairingId`, a 6-digit `code` to show, a `secret` the device keeps, and `expiresInSeconds` (600) |
+| `pairDevice(code: String!): PairedDeviceType` | signed in + household | Called from the app when the person types the code. Issues a session for that user, labelled "Remi device: <name>" |
+| `claimDevicePairing(pairingId: String!, secret: String!): DevicePairingClaimType` | public | Polled by the device: `WAITING`, then `PAIRED` once with `refreshToken` and `householdId`, or `EXPIRED` |
+
+Pairings live in memory (one API instance; lost on restart). The public mutations use the auth throttle.
+
+### Device REST endpoints
+
+Both need `Authorization: Bearer <access token>` and `x-household-id`, are limited to 40 calls per 10 minutes per household, and return 503 when `ANTHROPIC_API_KEY` is not set.
+
+- **`POST /device/ask`**, body `{"question": "what can I cook tonight?"}` (1 to 300 characters), returns `{"reply": "..."}`. Claude (`claude-opus-5-5`) answers as Remi, with the household's inventory, open shopping items and top recipe suggestions as context. Replies are at most 280 ASCII characters.
+- **`POST /device/scan?mode=barcode|label|list|receipt`**, body a JPEG or PNG (`Content-Type: image/jpeg` or `image/png`, up to 6 MB), returns:
+  ```json
+  { "title": "Shopping list", "lines": ["Milk 1 L", "Eggs x12"], "action": "list",
+    "items": [{ "foodId": "...", "name": "Milk", "amount": "1.000", "unit": "LITER" }] }
+  ```
+  `action` says where the items belong (`kitchen`, `list` or `none`). Barcodes are matched to `Product`; names go through the receipt matcher. The device then calls `addStock` or `addToShoppingList` for each item.
+
+Code: `src/modules/device/`. Tests: `test/unit/device-pairing.spec.ts`.

@@ -1,10 +1,11 @@
 #include "gfx.h"
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 namespace gfx {
 
-uint16_t fb[W * H];
+uint16_t *const fb = static_cast<uint16_t *>(calloc(W * H, sizeof(uint16_t)));
 static int ox = 0, oy = 0;
 
 void setOrigin(int x, int y) { ox = x; oy = y; }
