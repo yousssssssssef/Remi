@@ -42,3 +42,7 @@ CSV templates and all-or-nothing import instructions are in [backend/data/README
 - Backend setup, scripts, phase status, and handoff notes: [backend/README.md](backend/README.md)
 - GraphQL operations and payload examples: [backend/GRAPHQL_ENDPOINTS.md](backend/GRAPHQL_ENDPOINTS.md)
 - Architecture and database migrations: [backend/prisma/migrations](backend/prisma/migrations)
+
+## Hardware microphone prototype
+
+The ESP32-CAM + INMP441 recording experiment is working as of 22 November 2026. See [hardware documentation](hardware/README.md) for the exact firmware, wiring, upload procedure, audio-quality experiments and voice-to-text architecture. Speech-to-text and kitchen voice actions remain planned.
